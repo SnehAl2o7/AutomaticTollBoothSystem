@@ -35,12 +35,12 @@ class CarDetectionSystem:
             self.ocr_reader = easyocr.Reader(['en'], gpu=True)  # Set gpu=False if no GPU
             logger.info("✅ OCR reader initialized successfully")
         except Exception as e:
-            logger.warning(f"⚠️ Failed to initialize OCR with GPU, trying CPU: {e}")
+            logger.warning(f" Failed to initialize OCR with GPU, trying CPU: {e}")
             try:
                 self.ocr_reader = easyocr.Reader(['en'], gpu=False)
-                logger.info("✅ OCR reader initialized with CPU")
+                logger.info(" OCR reader initialized with CPU")
             except Exception as e2:
-                logger.error(f"❌ Failed to initialize OCR: {e2}")
+                logger.error(f" Failed to initialize OCR: {e2}")
                 self.ocr_reader = None
 
         # Vehicle class mapping for YOLO COCO dataset
@@ -65,15 +65,15 @@ class CarDetectionSystem:
             # Try to load a custom license plate model if available
             if os.path.exists('license_plate.pt'):
                 self.license_plate_model = YOLO('license_plate.pt')
-                logger.info("✅ Custom license plate model loaded")
+                logger.info(" Custom license plate model loaded")
             elif os.path.exists('models/license_plate.pt'):
                 self.license_plate_model = YOLO('models/license_plate.pt')
-                logger.info("✅ License plate model loaded from models folder")
+                logger.info("License plate model loaded from models folder")
             else:
-                logger.warning("⚠️ License plate model not found. Using region-based OCR detection.")
+                logger.warning(" License plate model not found. Using region-based OCR detection.")
                 self.license_plate_model = None
         except Exception as e:
-            logger.error(f"❌ Failed to load license plate model: {e}")
+            logger.error(f" Failed to load license plate model: {e}")
             self.license_plate_model = None
 
     def detect_vehicles(self, image_path):
@@ -142,6 +142,7 @@ class CarDetectionSystem:
 
     def preprocess_for_ocr(self, gray_image):
         """Apply various preprocessing techniques for better OCR"""
+
         processed_images = []
 
         # Original
@@ -243,8 +244,8 @@ class CarDetectionSystem:
         total_vehicles = len(vehicles)
         detected_plates = len([v for v in vehicles if self.extract_license_plate_region(image, v['bbox'])])
 
-        print(f"✅ Detection Results for {os.path.basename(image_path)}:")
-        print(f"   🚗 Total vehicles detected: {total_vehicles}")
+        print(f"Detection Results for {os.path.basename(image_path)}:")
+        print(f"Total vehicles detected: {total_vehicles}")
 
         vehicle_types = {}
         for vehicle in vehicles:
@@ -252,10 +253,10 @@ class CarDetectionSystem:
             vehicle_types[vtype] = vehicle_types.get(vtype, 0) + 1
 
         for vtype, count in vehicle_types.items():
-            print(f"   📍 {vtype.capitalize()}: {count}")
+            print(f" {vtype.capitalize()}: {count}")
 
         if unique_plates:
-            print(f"   🔢 License plates found: {len(unique_plates)}")
+            print(f"  License plates found: {len(unique_plates)}")
             for plate in unique_plates:
                 print(f"      → {plate}")
         else:
@@ -276,15 +277,15 @@ class CarDetectionSystem:
         """
 
         if not os.path.exists(video_path):
-            print(f"❌ Error: Video file not found at {video_path}")
-            print("🔍 Checking current directory...")
+            print(f" Error: Video file not found at {video_path}")
+            print(" Checking current directory...")
             current_files = [f for f in os.listdir('Models') if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))]
             if current_files:
-                print("📁 Video files found in current directory:")
+                print(" Video files found in current directory:")
                 for i, file in enumerate(current_files):
                     print(f"   {i+1}. {file}")
             else:
-                print("📁 No video files found in current directory")
+                print(" No video files found in current directory")
             return None
 
         cap = None
@@ -294,7 +295,7 @@ class CarDetectionSystem:
             try:
                 cap = cv2.VideoCapture(video_path, backend)
                 if cap.isOpened():
-                    print(f"✅ Video opened successfully with backend")
+                    print(f" Video opened successfully with backend")
                     break
                 else:
                     cap.release()
@@ -302,8 +303,8 @@ class CarDetectionSystem:
                 continue
 
         if cap is None or not cap.isOpened():
-            print(f"❌ Error: Could not open video file {video_path}")
-            print("💡 Trying alternative approach...")
+            print(f" Error: Could not open video file {video_path}")
+            print("Trying alternative approach...")
             return self.process_video_alternative(video_path, output_video_path, frame_skip)
 
         fps = int(cap.get(cv2.CAP_PROP_FPS))
@@ -313,12 +314,12 @@ class CarDetectionSystem:
         duration = total_frames / fps
 
         print(f"🎬 Video Info:")
-        print(f"   📁 File: {os.path.basename(video_path)}")
-        print(f"   ⏱️ Duration: {duration:.1f} seconds")
-        print(f"   📏 Resolution: {width}x{height}")
-        print(f"   🎞️ FPS: {fps}")
-        print(f"   📊 Total frames: {total_frames}")
-        print(f"   ⚡ Processing every {frame_skip} frames")
+        print(f"    File: {os.path.basename(video_path)}")
+        print(f"    Duration: {duration:.1f} seconds")
+        print(f"    Resolution: {width}x{height}")
+        print(f"    FPS: {fps}")
+        print(f"   Total frames: {total_frames}")
+        print(f"   Processing every {frame_skip} frames")
         print("   " + "="*50)
 
         out = None
@@ -388,7 +389,7 @@ class CarDetectionSystem:
 
                     if processed_count % 10 == 0:
                         progress = (frame_count / total_frames) * 100
-                        print(f"   🔄 Progress: {progress:.1f}% ({processed_count} frames processed)")
+                        print(f" Progress: {progress:.1f}% ({processed_count} frames processed)")
 
                 elif out is not None:
                     out.write(frame)
@@ -397,7 +398,7 @@ class CarDetectionSystem:
                 os.remove("temp_frame.jpg")
 
         except KeyboardInterrupt:
-            print("\n⚠️ Processing interrupted by user")
+            print("\n Processing interrupted by user")
 
         finally:
             cap.release()
@@ -439,15 +440,15 @@ class CarDetectionSystem:
 
     def print_video_summary(self, results):
         """Print summary of video processing results"""
-        print("\n🎯 Video Processing Complete!")
+        print("\n Video Processing Complete!")
         print("   " + "="*50)
-        print(f"   📊 Frames processed: {results['processed_frames']}")
-        print(f"   🚗 Unique vehicle types detected: {len(results['unique_vehicles'])}")
+        print(f"   Frames processed: {results['processed_frames']}")
+        print(f"   Unique vehicle types detected: {len(results['unique_vehicles'])}")
 
         for vehicle_type in sorted(results['unique_vehicles']):
             print(f"      → {vehicle_type.capitalize()}")
 
-        print(f"   🔢 Unique license plates found: {len(results['unique_plates'])}")
+        print(f"  Unique license plates found: {len(results['unique_plates'])}")
 
         if results['unique_plates']:
             for plate in sorted(results['unique_plates']):
@@ -460,7 +461,7 @@ class CarDetectionSystem:
     def save_video_results_to_csv(self, video_results, filename='video_detection_results.csv'):
         """Save video processing results to CSV"""
         if not video_results or not video_results['frame_results']:
-            print("❌ No video results to save")
+            print("No video results to save")
             return
 
         rows = []
@@ -494,7 +495,7 @@ class CarDetectionSystem:
 
         df = pd.DataFrame(rows)
         df.to_csv(filename, index=False)
-        print(f"📁 Video results saved to {filename}")
+        print(f" Video results saved to {filename}")
 
     def process_video_alternative(self, video_path, output_video_path=None, frame_skip=5):
         """
@@ -505,7 +506,7 @@ class CarDetectionSystem:
             import tempfile
             import shutil
 
-            print("🔄 Using alternative method: extracting frames with ffmpeg...")
+            print(" Using alternative method: extracting frames with ffmpeg...")
 
             temp_dir = tempfile.mkdtemp()
 
@@ -521,16 +522,16 @@ class CarDetectionSystem:
                 result = subprocess.run(cmd, capture_output=True, text=True)
 
                 if result.returncode != 0:
-                    print("❌ FFmpeg extraction failed. Trying frame-by-frame approach...")
+                    print(" FFmpeg extraction failed. Trying frame-by-frame approach...")
                     return self.process_video_frame_by_frame(video_path, frame_skip)
 
                 frame_files = sorted([f for f in os.listdir(temp_dir) if f.endswith('.jpg')])
 
                 if not frame_files:
-                    print("❌ No frames extracted")
+                    print("No frames extracted")
                     return None
 
-                print(f"✅ Extracted {len(frame_files)} frames")
+                print(f" Extracted {len(frame_files)} frames")
 
                 video_results = {
                     'video_path': video_path,
@@ -577,7 +578,7 @@ class CarDetectionSystem:
                     video_results['frame_results'].append(frame_data)
 
                     if (i + 1) % 10 == 0:
-                        print(f"   🔄 Progress: {((i + 1) / len(frame_files)) * 100:.1f}%")
+                        print(f" Progress: {((i + 1) / len(frame_files)) * 100:.1f}%")
 
                 self.print_video_summary(video_results)
                 return video_results
@@ -597,7 +598,7 @@ class CarDetectionSystem:
         """
         Last resort: try different OpenCV approaches
         """
-        print("🔄 Trying frame-by-frame processing with different settings...")
+        print(" Trying frame-by-frame processing with different settings...")
         approaches = [
             lambda: cv2.VideoCapture(video_path, cv2.CAP_FFMPEG),
             lambda: cv2.VideoCapture(video_path, cv2.CAP_ANY),
@@ -608,7 +609,7 @@ class CarDetectionSystem:
             try:
                 cap = approach()
                 if cap.isOpened():
-                    print(f"✅ Success with approach {i+1}")
+                    print(f" Success with approach {i+1}")
 
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -672,10 +673,10 @@ class CarDetectionSystem:
 
                             if processed_count % 5 == 0:
                                 progress = (frame_count / max(total_frames, frame_count)) * 100
-                                print(f"   🔄 Progress: {progress:.1f}%")
+                                print(f"Progress: {progress:.1f}%")
 
                         if processed_count > 100:  # Process max 100 frames
-                            print("⚠️ Limiting processing to 100 frames for safety")
+                            print(" Limiting processing to 100 frames for safety")
                             break
 
                     cap.release()
@@ -808,19 +809,15 @@ class CarDetectionSystem:
         plt.axis('off')
         plt.title('Vehicle and License Plate Detection')
         plt.show()
-
 def main():
-
-    detector = CarDetectionSystem()
-
-    detector.setup_license_plate_model()
-
-# Run the main function
-if __name__ == "__main__":
-    def main():
         detector = CarDetectionSystem()
 
         detector.setup_license_plate_model()
+
+
+# Run the main function
+if __name__ == "__main__":
+    main()
 
 # Additional utility functions
 def check_video_file(video_path):
@@ -833,12 +830,12 @@ def check_video_file(video_path):
         video_files = [f for f in os.listdir(current_dir) if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm', '.flv'))]
 
         if video_files:
-            print("📁 Video files in current directory:")
+            print(" Video files in current directory:")
             for i, file in enumerate(video_files, 1):
                 print(f"   {i}. {file}")
             return video_files
         else:
-            print("📁 No video files found in current directory")
+            print(" No video files found in current directory")
             return []
 
     # Try to get video info
@@ -866,7 +863,7 @@ def check_video_file(video_path):
 
 def process_video_simple(video_path):
     """Simplified video processing function with better error handling"""
-    print(f"🎬 Starting video processing...")
+    print(f" Starting video processing...")
 
     # First check if file exists and is valid
     if not check_video_file(video_path):
@@ -879,10 +876,10 @@ def process_video_simple(video_path):
 
     if results:
         detector.save_video_results_to_csv(results, 'video_results.csv')
-        print("✅ Video processing completed successfully!")
+        print(" Video processing completed successfully!")
         return results
     else:
-        print("❌ Video processing failed")
+        print(" Video processing failed")
         return None
 
 def process_video_only(video_path, save_annotated=False):
