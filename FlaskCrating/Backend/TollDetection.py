@@ -23,9 +23,9 @@ class CarDetectionSystem:
         try:
             self.vehicle_model = YOLO('yolov8m.pt')  # Pre-trained model for vehicle detection
             self.vehicle_model.verbose = False
-            logger.info("✅ Vehicle detection model loaded successfully")
+            logger.info(" Vehicle detection model loaded successfully")
         except Exception as e:
-            logger.error(f"❌ Failed to load vehicle model: {e}")
+            logger.error(f" Failed to load vehicle model: {e}")
             self.vehicle_model = None
 
         self.license_plate_model = None
@@ -33,7 +33,7 @@ class CarDetectionSystem:
         # Initialize OCR reader
         try:
             self.ocr_reader = easyocr.Reader(['en'], gpu=True)  # Set gpu=False if no GPU
-            logger.info("✅ OCR reader initialized successfully")
+            logger.info(" OCR reader initialized successfully")
         except Exception as e:
             logger.warning(f" Failed to initialize OCR with GPU, trying CPU: {e}")
             try:
