@@ -10,9 +10,15 @@ from datetime import datetime
 import base64
 import io
 from PIL import Image
+import logging
+import traceback
 
-# Import your ML model
+# Import your integrated ML model
 from ml_models import ml_model
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
@@ -21,7 +27,7 @@ CORS(app)  # Enable CORS for frontend communication
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
 MODEL_FOLDER = 'models'
-ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov'}
+ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov', 'mkv', 'webm'}
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
@@ -34,24 +40,40 @@ os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
 
 
-# Your actual ML model is now loaded in ml_models.py
-
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
 
 def is_video_file(filename):
-    video_extensions = {'mp4', 'avi', 'mov', 'mkv'}
+    video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'webm'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in video_extensions
 
 
 @app.route('/api/health', methods=['GET'])
 def health_check():
-    return jsonify({"status": "healthy", "message": "Vehicle Detection API is running"})
+    """Health check endpoint"""
+    try:
+        # Test if the ML model is working
+        model_status = "healthy" if ml_model.detection_system else "error"
+
+        return jsonify({
+            "status": "healthy",
+            "message": "Vehicle Detection API is running",
+            "model_status": model_status,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Health check failed: {e}")
+        return jsonify({
+            "status": "error",
+            "message": f"API error: {str(e)}",
+            "timestamp": datetime.now().isoformat()
+        }), 500
 
 
 @app.route('/api/upload', methods=['POST'])
 def upload_file():
+    """Upload file endpoint"""
     try:
         if 'file' not in request.files:
             return jsonify({"error": "No file provided"}), 400
@@ -61,7 +83,7 @@ def upload_file():
             return jsonify({"error": "No file selected"}), 400
 
         if not allowed_file(file.filename):
-            return jsonify({"error": "File type not allowed"}), 400
+            return jsonify({"error": "File type not allowed. Supported: " + ", ".join(ALLOWED_EXTENSIONS)}), 400
 
         # Generate unique filename
         unique_id = str(uuid.uuid4())
@@ -72,177 +94,169 @@ def upload_file():
         filepath = os.path.join(app.config['UPLOAD_FOLDER'], unique_filename)
         file.save(filepath)
 
+        # Get file size
+        file_size = os.path.getsize(filepath)
+
+        logger.info(f"File uploaded: {filename} -> {unique_filename} ({file_size} bytes)")
+
         return jsonify({
             "message": "File uploaded successfully",
             "file_id": unique_id,
             "filename": filename,
-            "is_video": is_video_file(filename)
+            "file_size": file_size,
+            "is_video": is_video_file(filename),
+            "upload_timestamp": datetime.now().isoformat()
         }), 200
 
     except Exception as e:
+        logger.error(f"Upload error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
 @app.route('/api/process/<file_id>', methods=['POST'])
 def process_file(file_id):
+    """Process uploaded file endpoint"""
     try:
+        logger.info(f"Processing file with ID: {file_id}")
+
         # Find the uploaded file
         uploaded_file = None
+        original_filename = None
+
         for ext in ALLOWED_EXTENSIONS:
             potential_path = os.path.join(app.config['UPLOAD_FOLDER'], f"{file_id}.{ext}")
             if os.path.exists(potential_path):
                 uploaded_file = potential_path
+                original_filename = f"{file_id}.{ext}"
                 break
 
         if not uploaded_file:
+            logger.error(f"File not found for ID: {file_id}")
             return jsonify({"error": "File not found"}), 404
 
-        if is_video_file(uploaded_file):
-            results = process_video(uploaded_file, file_id)
-        else:
-            results = process_image(uploaded_file, file_id)
+        # Get processing options from request
+        options = request.get_json() or {}
+        frame_skip = options.get('frame_skip', 10)  # For video processing
+        save_annotated = options.get('save_annotated', True)
 
-        return jsonify(results), 200
+        if is_video_file(uploaded_file):
+            results = process_video(uploaded_file, file_id, frame_skip, save_annotated)
+        else:
+            results = process_image(uploaded_file, file_id, save_annotated)
+
+        if results:
+            logger.info(f"Processing completed for {file_id}")
+            return jsonify(results), 200
+        else:
+            logger.error(f"Processing failed for {file_id}")
+            return jsonify({"error": "Processing failed"}), 500
 
     except Exception as e:
+        logger.error(f"Processing error for {file_id}: {e}")
+        logger.error(traceback.format_exc())
         return jsonify({"error": str(e)}), 500
 
 
-def process_image(image_path, file_id):
+def process_image(image_path, file_id, save_annotated=True):
     """Process a single image for vehicle detection and license plate recognition"""
+    try:
+        logger.info(f"Processing image: {image_path}")
 
-    # Detect vehicles using your actual model
-    vehicles = ml_model.detect_vehicles(image_path)
+        # Detect vehicles using the integrated model
+        vehicles = ml_model.detect_vehicles(image_path)
 
-    # Extract license plates using your actual model
-    license_plates = ml_model.extract_license_plates(image_path, vehicles)
+        # Extract license plates
+        license_plates = ml_model.extract_license_plates(image_path, vehicles)
 
-    # Draw bounding boxes and save processed image
-    processed_image_path = draw_detections(image_path, vehicles, license_plates, file_id)
+        # Get detailed statistics
+        stats = ml_model.get_detection_statistics(image_path)
 
-    # Prepare results
-    results = {
-        "type": "image",
-        "file_id": file_id,
-        "timestamp": datetime.now().isoformat(),
-        "vehicles_detected": len(vehicles),
-        "license_plates_detected": len(license_plates),
-        "vehicles": vehicles,
-        "license_plates": license_plates,
-        "processed_image": f"/api/download/{file_id}_processed.jpg"
-    }
+        processed_image_url = None
+        if save_annotated:
+            # Create annotated image
+            processed_image_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_processed.jpg")
+            annotated_path = ml_model.visualize_detections(image_path, processed_image_path)
 
-    # Save results to JSON file
-    results_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_results.json")
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=2)
+            if annotated_path and os.path.exists(annotated_path):
+                processed_image_url = f"/api/download/{file_id}_processed.jpg"
+                logger.info(f"Annotated image saved: {processed_image_path}")
 
-    return results
+        # Prepare results
+        results = {
+            "type": "image",
+            "file_id": file_id,
+            "timestamp": datetime.now().isoformat(),
+            "vehicles_detected": len(vehicles),
+            "license_plates_detected": len(license_plates),
+            "processing_status": "completed",
+            "vehicles": vehicles,
+            "license_plates": license_plates,
+            "statistics": stats,
+            "processed_image": processed_image_url
+        }
+
+        # Save results to JSON file
+        results_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_results.json")
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
+
+        logger.info(f"Image processing completed: {len(vehicles)} vehicles, {len(license_plates)} plates")
+        return results
+
+    except Exception as e:
+        logger.error(f"Image processing error: {e}")
+        logger.error(traceback.format_exc())
+        return None
 
 
-def process_video(video_path, file_id):
+def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
     """Process a video for vehicle detection and license plate recognition"""
+    try:
+        logger.info(f"Processing video: {video_path} with frame_skip={frame_skip}")
 
-    cap = cv2.VideoCapture(video_path)
-    frame_count = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
-    fps = int(cap.get(cv2.CAP_PROP_FPS))
+        # Use the integrated video processing
+        video_results = ml_model.process_video_flask(video_path, frame_skip)
 
-    all_detections = []
-    processed_frames = []
+        if not video_results:
+            logger.error("Video processing failed")
+            return None
 
-    frame_number = 0
-    while cap.read()[0]:
-        ret, frame = cap.read()
-        if not ret:
-            break
+        # Calculate summary statistics
+        total_vehicles = sum(len(detection['vehicles']) for detection in video_results['frame_detections'])
+        total_plates = sum(len(detection['license_plates']) for detection in video_results['frame_detections'])
 
-        # Process every 30th frame (for performance)
-        if frame_number % 30 == 0:
-            # Save frame temporarily
-            temp_frame_path = f"temp_frame_{file_id}_{frame_number}.jpg"
-            cv2.imwrite(temp_frame_path, frame)
+        # Prepare Flask API results
+        results = {
+            "type": "video",
+            "file_id": file_id,
+            "timestamp": datetime.now().isoformat(),
+            "processing_status": "completed",
+            "video_info": {
+                "total_frames": video_results['total_frames'],
+                "processed_frames": video_results['processed_frames'],
+                "frame_skip": frame_skip
+            },
+            "summary": {
+                "total_vehicles_detected": total_vehicles,
+                "total_license_plates_detected": total_plates,
+                "unique_vehicle_types": video_results['unique_vehicles'],
+                "unique_license_plates": video_results['unique_plates']
+            },
+            "detections": video_results['frame_detections']
+        }
 
-            # Detect vehicles and license plates using your actual model
-            vehicles = ml_model.detect_vehicles(temp_frame_path)
-            license_plates = ml_model.extract_license_plates(temp_frame_path, vehicles)
+        # Save results to JSON file
+        results_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_results.json")
+        with open(results_path, 'w') as f:
+            json.dump(results, f, indent=2, default=str)
 
-            frame_results = {
-                "frame_number": frame_number,
-                "timestamp": frame_number / fps,
-                "vehicles": vehicles,
-                "license_plates": license_plates
-            }
+        logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates")
+        return results
 
-            all_detections.append(frame_results)
-
-            # Clean up temp frame
-            os.remove(temp_frame_path)
-
-        frame_number += 1
-
-    cap.release()
-
-    # Compile results
-    results = {
-        "type": "video",
-        "file_id": file_id,
-        "timestamp": datetime.now().isoformat(),
-        "total_frames": frame_count,
-        "fps": fps,
-        "duration_seconds": frame_count / fps,
-        "frames_processed": len(all_detections),
-        "total_vehicles_detected": sum(len(detection["vehicles"]) for detection in all_detections),
-        "total_license_plates_detected": sum(len(detection["license_plates"]) for detection in all_detections),
-        "detections": all_detections
-    }
-
-    # Save results to JSON file
-    results_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_results.json")
-    with open(results_path, 'w') as f:
-        json.dump(results, f, indent=2)
-
-    return results
-
-
-def draw_detections(image_path, vehicles, license_plates, file_id):
-    """Draw bounding boxes on the image and save processed version"""
-
-    # Load image
-    image = cv2.imread(image_path)
-
-    # Draw vehicle bounding boxes
-    for vehicle in vehicles:
-        bbox = vehicle["bbox"]
-        confidence = vehicle["confidence"]
-        class_name = vehicle["class"]
-
-        # Draw rectangle
-        cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 255, 0), 2)
-
-        # Draw label
-        label = f"{class_name}: {confidence:.2f}"
-        cv2.putText(image, label, (bbox[0], bbox[1] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2)
-
-    # Draw license plate bounding boxes
-    for plate in license_plates:
-        bbox = plate["bbox"]
-        text = plate["text"]
-        confidence = plate["confidence"]
-
-        # Draw rectangle
-        cv2.rectangle(image, (bbox[0], bbox[1]), (bbox[2], bbox[3]), (0, 0, 255), 2)
-
-        # Draw label
-        label = f"{text}: {confidence:.2f}"
-        cv2.putText(image, label, (bbox[0], bbox[1] - 10),
-                    cv2.FONT_HERSHEY_SIMPLEX, 0.4, (0, 0, 255), 2)
-
-    # Save processed image
-    processed_image_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_processed.jpg")
-    cv2.imwrite(processed_image_path, image)
-
-    return processed_image_path
+    except Exception as e:
+        logger.error(f"Video processing error: {e}")
+        logger.error(traceback.format_exc())
+        return None
 
 
 @app.route('/api/download/<filename>')
@@ -251,10 +265,13 @@ def download_file(filename):
     try:
         file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
         if os.path.exists(file_path):
+            logger.info(f"Serving file: {filename}")
             return send_file(file_path)
         else:
+            logger.warning(f"File not found: {filename}")
             return jsonify({"error": "File not found"}), 404
     except Exception as e:
+        logger.error(f"Download error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -266,12 +283,126 @@ def get_results(file_id):
         if os.path.exists(results_path):
             with open(results_path, 'r') as f:
                 results = json.load(f)
+            logger.info(f"Serving results for: {file_id}")
             return jsonify(results)
         else:
+            logger.warning(f"Results not found for: {file_id}")
             return jsonify({"error": "Results not found"}), 404
     except Exception as e:
+        logger.error(f"Results retrieval error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
+@app.route('/api/files', methods=['GET'])
+def list_files():
+    """List all uploaded and processed files"""
+    try:
+        uploaded_files = []
+        processed_files = []
+
+        # List uploaded files
+        if os.path.exists(app.config['UPLOAD_FOLDER']):
+            for filename in os.listdir(app.config['UPLOAD_FOLDER']):
+                if allowed_file(filename):
+                    file_path = os.path.join(app.config['UPLOAD_FOLDER'], filename)
+                    file_id = filename.split('.')[0]
+
+                    uploaded_files.append({
+                        'file_id': file_id,
+                        'filename': filename,
+                        'size': os.path.getsize(file_path),
+                        'upload_time': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat(),
+                        'is_video': is_video_file(filename)
+                    })
+
+        # List processed files
+        if os.path.exists(app.config['OUTPUT_FOLDER']):
+            for filename in os.listdir(app.config['OUTPUT_FOLDER']):
+                if filename.endswith('_results.json'):
+                    file_id = filename.replace('_results.json', '')
+                    file_path = os.path.join(app.config['OUTPUT_FOLDER'], filename)
+
+                    processed_files.append({
+                        'file_id': file_id,
+                        'results_file': filename,
+                        'process_time': datetime.fromtimestamp(os.path.getctime(file_path)).isoformat()
+                    })
+
+        return jsonify({
+            'uploaded_files': uploaded_files,
+            'processed_files': processed_files,
+            'total_uploaded': len(uploaded_files),
+            'total_processed': len(processed_files)
+        })
+
+    except Exception as e:
+        logger.error(f"File listing error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/cleanup', methods=['POST'])
+def cleanup_files():
+    """Clean up temporary and old files"""
+    try:
+        cleanup_count = 0
+
+        # Clean up ML model temp files
+        ml_model.cleanup_temp_files()
+        cleanup_count += 1
+
+        # Optionally clean up old files (older than 24 hours)
+        import time
+        current_time = time.time()
+        day_ago = current_time - (24 * 60 * 60)  # 24 hours ago
+
+        for folder in [app.config['UPLOAD_FOLDER'], app.config['OUTPUT_FOLDER']]:
+            if os.path.exists(folder):
+                for filename in os.listdir(folder):
+                    file_path = os.path.join(folder, filename)
+                    if os.path.getctime(file_path) < day_ago:
+                        try:
+                            os.remove(file_path)
+                            cleanup_count += 1
+                        except Exception as e:
+                            logger.warning(f"Could not remove old file {filename}: {e}")
+
+        return jsonify({
+            'status': 'completed',
+            'files_cleaned': cleanup_count,
+            'timestamp': datetime.now().isoformat()
+        })
+
+    except Exception as e:
+        logger.error(f"Cleanup error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.errorhandler(413)
+def too_large(e):
+    return jsonify({"error": "File too large. Maximum size is 100MB"}), 413
+
+
+@app.errorhandler(404)
+def not_found(e):
+    return jsonify({"error": "Endpoint not found"}), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    return jsonify({"error": "Internal server error"}), 500
+
+
 if __name__ == '__main__':
+    logger.info("Starting Vehicle Detection Flask API...")
+    logger.info(f"Upload folder: {UPLOAD_FOLDER}")
+    logger.info(f"Output folder: {OUTPUT_FOLDER}")
+    logger.info("API endpoints available:")
+    logger.info("  GET  /api/health - Health check")
+    logger.info("  POST /api/upload - Upload file")
+    logger.info("  POST /api/process/<file_id> - Process file")
+    logger.info("  GET  /api/results/<file_id> - Get results")
+    logger.info("  GET  /api/download/<filename> - Download file")
+    logger.info("  GET  /api/files - List files")
+    logger.info("  POST /api/cleanup - Cleanup temp files")
+
     app.run(debug=True, host='0.0.0.0', port=5000)

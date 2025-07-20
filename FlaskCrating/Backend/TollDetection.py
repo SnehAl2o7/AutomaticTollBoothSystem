@@ -8,18 +8,42 @@ from PIL import Image
 import matplotlib.pyplot as plt
 import re
 from pathlib import Path
+import logging
+
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class CarDetectionSystem:
     def __init__(self):
+        """Initialize the car detection system with all required models"""
+        logger.info("Initializing CarDetectionSystem...")
+
         # Initialize YOLOv8 models
-        self.vehicle_model = YOLO('yolov8m.pt')  # Pre-trained model for vehicle detection
-        self.vehicle_model.verbose = False
+        try:
+            self.vehicle_model = YOLO('yolov8m.pt')  # Pre-trained model for vehicle detection
+            self.vehicle_model.verbose = False
+            logger.info("✅ Vehicle detection model loaded successfully")
+        except Exception as e:
+            logger.error(f"❌ Failed to load vehicle model: {e}")
+            self.vehicle_model = None
+
         self.license_plate_model = None
 
         # Initialize OCR reader
-        self.ocr_reader = easyocr.Reader(['en'], gpu=True)  # Set gpu=False if no GPU
+        try:
+            self.ocr_reader = easyocr.Reader(['en'], gpu=True)  # Set gpu=False if no GPU
+            logger.info("✅ OCR reader initialized successfully")
+        except Exception as e:
+            logger.warning(f"⚠️ Failed to initialize OCR with GPU, trying CPU: {e}")
+            try:
+                self.ocr_reader = easyocr.Reader(['en'], gpu=False)
+                logger.info("✅ OCR reader initialized with CPU")
+            except Exception as e2:
+                logger.error(f"❌ Failed to initialize OCR: {e2}")
+                self.ocr_reader = None
 
-
+        # Vehicle class mapping for YOLO COCO dataset
         self.vehicle_classes = {
             2: 'car',
             3: 'motorcycle',
@@ -30,15 +54,26 @@ class CarDetectionSystem:
         # Results storage
         self.results = []
 
+        logger.info("CarDetectionSystem initialization completed")
+
     def setup_license_plate_model(self):
         """
         Setup license plate detection model
         You can download a custom trained model or use a pre-trained one
         """
         try:
-            self.license_plate_model = YOLO('license_plate.pt')
-        except:
-            print("License plate model not found. Using region-based OCR detection.")
+            # Try to load a custom license plate model if available
+            if os.path.exists('license_plate.pt'):
+                self.license_plate_model = YOLO('license_plate.pt')
+                logger.info("✅ Custom license plate model loaded")
+            elif os.path.exists('models/license_plate.pt'):
+                self.license_plate_model = YOLO('models/license_plate.pt')
+                logger.info("✅ License plate model loaded from models folder")
+            else:
+                logger.warning("⚠️ License plate model not found. Using region-based OCR detection.")
+                self.license_plate_model = None
+        except Exception as e:
+            logger.error(f"❌ Failed to load license plate model: {e}")
             self.license_plate_model = None
 
     def detect_vehicles(self, image_path):
@@ -77,9 +112,7 @@ class CarDetectionSystem:
         x1, y1, x2, y2 = vehicle_bbox
         vehicle_crop = image[y1:y2, x1:x2]
 
-
         h, w = vehicle_crop.shape[:2]
-
 
         regions = [
             (0, int(h*0.6), w, h),  # Bottom region
@@ -91,7 +124,6 @@ class CarDetectionSystem:
         for region in regions:
             rx1, ry1, rx2, ry2 = region
             region_crop = vehicle_crop[ry1:ry2, rx1:rx2]
-
 
             gray = cv2.cvtColor(region_crop, cv2.COLOR_BGR2GRAY)
 
@@ -154,9 +186,7 @@ class CarDetectionSystem:
         if not text or len(text.strip()) < 3:
             return False
 
-
         clean_text = re.sub(r'[^A-Z0-9]', '', text.upper())
-
 
         patterns = [
             r'^[A-Z]{1,3}[0-9]{1,4}[A-Z]{0,2}$',
@@ -168,7 +198,6 @@ class CarDetectionSystem:
             if re.match(pattern, clean_text):
                 return True
 
-
         has_letter = any(c.isalpha() for c in clean_text)
         has_number = any(c.isdigit() for c in clean_text)
 
@@ -177,7 +206,6 @@ class CarDetectionSystem:
     def process_single_image(self, image_path):
         """Process a single image and extract vehicle info"""
         print(f"Processing: {image_path}")
-
 
         image, vehicles = self.detect_vehicles(image_path)
 
@@ -189,13 +217,11 @@ class CarDetectionSystem:
             'vehicles': []
         }
 
-
         unique_plates = set()
 
         for i, vehicle in enumerate(vehicles):
 
             license_plates = self.extract_license_plate_region(image, vehicle['bbox'])
-
 
             best_plate = None
             if license_plates:
@@ -214,13 +240,11 @@ class CarDetectionSystem:
 
             image_results['vehicles'].append(vehicle_info)
 
-
         total_vehicles = len(vehicles)
         detected_plates = len([v for v in vehicles if self.extract_license_plate_region(image, v['bbox'])])
 
         print(f"✅ Detection Results for {os.path.basename(image_path)}:")
         print(f"   🚗 Total vehicles detected: {total_vehicles}")
-
 
         vehicle_types = {}
         for vehicle in vehicles:
@@ -241,7 +265,6 @@ class CarDetectionSystem:
 
         return image_results
 
-
     def process_video(self, video_path, output_video_path=None, frame_skip=5):
         """
         Process video file and extract vehicle info from frames
@@ -255,7 +278,7 @@ class CarDetectionSystem:
         if not os.path.exists(video_path):
             print(f"❌ Error: Video file not found at {video_path}")
             print("🔍 Checking current directory...")
-            current_files = [f for f in os.listdir('.') if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))]
+            current_files = [f for f in os.listdir('Models') if f.lower().endswith(('.mp4', '.avi', '.mov', '.mkv', '.webm'))]
             if current_files:
                 print("📁 Video files found in current directory:")
                 for i, file in enumerate(current_files):
@@ -263,7 +286,6 @@ class CarDetectionSystem:
             else:
                 print("📁 No video files found in current directory")
             return None
-
 
         cap = None
         backends = [cv2.CAP_FFMPEG, cv2.CAP_ANY]
@@ -284,7 +306,6 @@ class CarDetectionSystem:
             print("💡 Trying alternative approach...")
             return self.process_video_alternative(video_path, output_video_path, frame_skip)
 
-
         fps = int(cap.get(cv2.CAP_PROP_FPS))
         total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
         width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
@@ -300,12 +321,10 @@ class CarDetectionSystem:
         print(f"   ⚡ Processing every {frame_skip} frames")
         print("   " + "="*50)
 
-
         out = None
         if output_video_path:
             fourcc = cv2.VideoWriter_fourcc(*'mp4v')
             out = cv2.VideoWriter(output_video_path, fourcc, fps, (width, height))
-
 
         video_results = {
             'video_path': video_path,
@@ -327,14 +346,11 @@ class CarDetectionSystem:
 
                 frame_count += 1
 
-
                 if frame_count % frame_skip == 0:
                     processed_count += 1
 
-
                     temp_frame_path = "temp_frame.jpg"
                     cv2.imwrite(temp_frame_path, frame)
-
 
                     _, vehicles = self.detect_vehicles(temp_frame_path)
 
@@ -344,10 +360,8 @@ class CarDetectionSystem:
                         'vehicles': []
                     }
 
-
                     for vehicle in vehicles:
                         video_results['unique_vehicles'].add(vehicle['type'])
-
 
                         license_plates = self.extract_license_plate_region(frame, vehicle['bbox'])
                         best_plate = None
@@ -368,20 +382,16 @@ class CarDetectionSystem:
 
                     video_results['frame_results'].append(frame_data)
 
-
                     if out is not None:
                         annotated_frame = self.annotate_frame(frame, vehicles)
                         out.write(annotated_frame)
-
 
                     if processed_count % 10 == 0:
                         progress = (frame_count / total_frames) * 100
                         print(f"   🔄 Progress: {progress:.1f}% ({processed_count} frames processed)")
 
-
                 elif out is not None:
                     out.write(frame)
-
 
             if os.path.exists("temp_frame.jpg"):
                 os.remove("temp_frame.jpg")
@@ -397,11 +407,9 @@ class CarDetectionSystem:
 
         video_results['processed_frames'] = processed_count
 
-
         self.print_video_summary(video_results)
 
         return video_results
-
 
     def annotate_frame(self, frame, vehicles):
         """Annotate a single frame with detection results"""
@@ -499,7 +507,6 @@ class CarDetectionSystem:
 
             print("🔄 Using alternative method: extracting frames with ffmpeg...")
 
-
             temp_dir = tempfile.mkdtemp()
 
             try:
@@ -517,7 +524,6 @@ class CarDetectionSystem:
                     print("❌ FFmpeg extraction failed. Trying frame-by-frame approach...")
                     return self.process_video_frame_by_frame(video_path, frame_skip)
 
-
                 frame_files = sorted([f for f in os.listdir(temp_dir) if f.endswith('.jpg')])
 
                 if not frame_files:
@@ -525,7 +531,6 @@ class CarDetectionSystem:
                     return None
 
                 print(f"✅ Extracted {len(frame_files)} frames")
-
 
                 video_results = {
                     'video_path': video_path,
@@ -550,7 +555,6 @@ class CarDetectionSystem:
 
                     for vehicle in vehicles:
                         video_results['unique_vehicles'].add(vehicle['type'])
-
 
                         frame = cv2.imread(frame_path)
                         license_plates = self.extract_license_plate_region(frame, vehicle['bbox'])
@@ -605,7 +609,6 @@ class CarDetectionSystem:
                 cap = approach()
                 if cap.isOpened():
                     print(f"✅ Success with approach {i+1}")
-
 
                     total_frames = int(cap.get(cv2.CAP_PROP_FRAME_COUNT))
                     fps = cap.get(cv2.CAP_PROP_FPS) or 30
@@ -671,7 +674,6 @@ class CarDetectionSystem:
                                 progress = (frame_count / max(total_frames, frame_count)) * 100
                                 print(f"   🔄 Progress: {progress:.1f}%")
 
-
                         if processed_count > 100:  # Process max 100 frames
                             print("⚠️ Limiting processing to 100 frames for safety")
                             break
@@ -705,7 +707,6 @@ class CarDetectionSystem:
         """Process entire dataset"""
         dataset_path = Path(dataset_path)
         image_extensions = {'.jpg', '.jpeg', '.png', '.bmp', '.tiff'}
-
 
         image_files = []
         for ext in image_extensions:
@@ -814,48 +815,12 @@ def main():
 
     detector.setup_license_plate_model()
 
-    # Process a single image
-    single_image_path = "/content/TEST.jpg"
-    if os.path.exists(single_image_path):
-        result = detector.process_single_image(single_image_path)
-        if result:
-            print("Single image processing complete!")
-            detector.visualize_results(single_image_path)
-
-    # # Process a video file
-    # video_path = "/content/TEST.mp4"
-    # if os.path.exists(video_path):
-    #     print("Processing video...")
-    #     video_results = detector.process_video(
-    #         video_path=video_path,
-    #         output_video_path="annotated_output.mp4",  # Optional: save annotated video
-    #         frame_skip=5  # Process every 5th frame for faster processing
-    #     )
-
-    #     # Save video results to CSV
-    #     if video_results:
-    #         detector.save_video_results_to_csv(video_results, 'video_detection_results.csv')
-
-    # # Process entire dataset
-    # dataset_path = "/content/drive/MyDrive/DataSet/image_files"  # Replace with your dataset folder path
-    # if os.path.exists(dataset_path):
-    #     print("Processing dataset...")
-    #     results = detector.process_dataset(dataset_path)
-
-    #     # Save results to CSV
-    #     detector.save_results_to_csv('vehicle_detection_results.csv')
-
-    #     print(f"Dataset processing complete! Processed {len(results)} images.")
-    #     print(f"Total vehicles detected: {len(detector.results)}")
-
-    #     # Show sample results
-    #     if results:
-    #         sample_image = results[0]['image_path']
-    #         detector.visualize_results(sample_image)
-
 # Run the main function
 if __name__ == "__main__":
-    main()
+    def main():
+        detector = CarDetectionSystem()
+
+        detector.setup_license_plate_model()
 
 # Additional utility functions
 def check_video_file(video_path):
