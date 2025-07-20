@@ -11,8 +11,8 @@ import base64
 import io
 from PIL import Image
 
-# Import your ML model here
-# from your_model import VehicleDetector, LicensePlateReader
+# Import your ML model
+from ml_models import ml_model
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
@@ -20,6 +20,7 @@ CORS(app)  # Enable CORS for frontend communication
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
+MODEL_FOLDER = 'models'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov'}
 MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
 
@@ -30,28 +31,10 @@ app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
 # Create directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
+os.makedirs(MODEL_FOLDER, exist_ok=True)
 
 
-# Initialize your ML models (replace with your actual model loading)
-class MockVehicleDetector:
-    def detect_vehicles(self, image_path):
-        # Replace this with your actual vehicle detection logic
-        return [
-            {"bbox": [100, 100, 200, 150], "confidence": 0.95, "class": "car"},
-            {"bbox": [300, 200, 400, 280], "confidence": 0.87, "class": "truck"}
-        ]
-
-    def extract_license_plates(self, image_path, vehicle_bboxes):
-        # Replace this with your actual license plate recognition logic
-        return [
-            {"text": "ABC123", "confidence": 0.92, "bbox": [120, 130, 180, 145]},
-            {"text": "XYZ789", "confidence": 0.88, "bbox": [320, 240, 380, 255]}
-        ]
-
-
-# Initialize model (replace with your actual model)
-detector = MockVehicleDetector()
-
+# Your actual ML model is now loaded in ml_models.py
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -128,11 +111,11 @@ def process_file(file_id):
 def process_image(image_path, file_id):
     """Process a single image for vehicle detection and license plate recognition"""
 
-    # Detect vehicles
-    vehicles = detector.detect_vehicles(image_path)
+    # Detect vehicles using your actual model
+    vehicles = ml_model.detect_vehicles(image_path)
 
-    # Extract license plates
-    license_plates = detector.extract_license_plates(image_path, vehicles)
+    # Extract license plates using your actual model
+    license_plates = ml_model.extract_license_plates(image_path, vehicles)
 
     # Draw bounding boxes and save processed image
     processed_image_path = draw_detections(image_path, vehicles, license_plates, file_id)
@@ -179,9 +162,9 @@ def process_video(video_path, file_id):
             temp_frame_path = f"temp_frame_{file_id}_{frame_number}.jpg"
             cv2.imwrite(temp_frame_path, frame)
 
-            # Detect vehicles and license plates
-            vehicles = detector.detect_vehicles(temp_frame_path)
-            license_plates = detector.extract_license_plates(temp_frame_path, vehicles)
+            # Detect vehicles and license plates using your actual model
+            vehicles = ml_model.detect_vehicles(temp_frame_path)
+            license_plates = ml_model.extract_license_plates(temp_frame_path, vehicles)
 
             frame_results = {
                 "frame_number": frame_number,
