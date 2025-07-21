@@ -34,8 +34,17 @@ function App() {
   const handleDrop = useCallback((event) => {
     event.preventDefault();
     const files = Array.from(event.dataTransfer.files);
+    const validTypes = [
+      'image/jpeg',
+      'image/jpg',
+      'image/png',
+      'video/mp4',
+      'video/quicktime',      // .mov
+      'video/x-msvideo',      // .avi
+      'video/webm',
+      'video/x-matroska'      // .mkv
+    ];
     const validFiles = files.filter(file => {
-      const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'video/avi', 'video/mov'];
       return validTypes.includes(file.type) && file.size <= 100 * 1024 * 1024;
     });
     setSelectedFiles(validFiles);
@@ -136,7 +145,7 @@ function App() {
               <div className="drop-content">
                 <span className="upload-icon">📁</span>
                 <p>Drag & drop files here or click to browse</p>
-                <p className="file-types">Supported: JPG, PNG, MP4, AVI, MOV (max 100MB each)</p>
+                <p className="file-types">Supported: JPG, JPEG, PNG, MP4, AVI, MOV (max 100MB each)</p>
               </div>
             </label>
           </div>
@@ -235,9 +244,10 @@ function App() {
                   <div className="processed-image">
                     <h4>Processed Image with Detections:</h4>
                     <img 
-                      src={`${API_BASE_URL}${result.processed_image}`}
+                      src={`http://localhost:5000${result.processed_image}`} 
                       alt="Processed with detections"
                       className="result-image"
+                      style={{ maxWidth: '100%', border: '2px solid #ccc', marginTop: '10px' }}
                     />
                   </div>
                 )}
@@ -309,10 +319,11 @@ function App() {
       </main>
 
       <footer className="app-footer">
-        <p>Powered by Machine Learning • Vehicle Detection & License Plate Recognition</p>
+        <p>Powered by Snehal Singh Bisht • Vehicle Detection & License Plate Recognition</p>
       </footer>
     </div>
   );
 }
+
 
 export default App;

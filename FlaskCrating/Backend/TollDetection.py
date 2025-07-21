@@ -806,9 +806,12 @@ class CarDetectionSystem:
 
         plt.figure(figsize=(12, 8))
         plt.imshow(image_rgb)
+        output_path = f"outputs/{file_id}_processed.jpg"
         plt.axis('off')
-        plt.title('Vehicle and License Plate Detection')
-        plt.show()
+        plt.savefig(output_path, bbox_inches='tight')
+        plt.close()
+
+        
 def main():
         detector = CarDetectionSystem()
 

@@ -1,7 +1,6 @@
 from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS
+from flask_cors import CORS # type: ignore
 import os
-import cv2
 import numpy as np
 from werkzeug.utils import secure_filename
 import uuid
@@ -119,6 +118,11 @@ def process_file(file_id):
     try:
         logger.info(f"Processing file with ID: {file_id}")
 
+        options = {}
+        if request.is_json:
+            options = request.get_json()
+
+        
         # Find the uploaded file
         uploaded_file = None
         original_filename = None
@@ -135,7 +139,6 @@ def process_file(file_id):
             return jsonify({"error": "File not found"}), 404
 
         # Get processing options from request
-        options = request.get_json() or {}
         frame_skip = options.get('frame_skip', 10)  # For video processing
         save_annotated = options.get('save_annotated', True)
 
