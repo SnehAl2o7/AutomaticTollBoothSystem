@@ -292,9 +292,6 @@ def process_image(image_path, file_id, save_annotated=True):
             "license_plates_detected": len(license_plates),
             "processing_status": "completed",
             
-            # Toll rates
-            "total_rates": toll_info["total_toll_amount"],
-            "toll_breakdown": toll_info["toll_breakdown"],
                         
             # Toll gate status
             "toll_gate": toll_gate,
@@ -569,8 +566,6 @@ if __name__ == '__main__':
     logger.info(f"Upload folder: {UPLOAD_FOLDER}")
     logger.info(f"Output folder: {OUTPUT_FOLDER}")
     logger.info("Current TOLL_RATES configuration:")
-    for vehicle_type, rate in TOLL_RATES.items():
-        logger.info(f"  - {vehicle_type}: ₹{rate}")
     logger.info("API endpoints available:")
     logger.info("  GET  /api/health - Health check")
     logger.info("  POST /api/upload - Upload file")
