@@ -122,7 +122,7 @@ function App() {
     <div className="App">
       <header className="App-header">
         <h1>🚗 AUTOMATIC TOLL BOOTH SYSTEM </h1>
-        <p>Upload images or videos to detect vehicles and read license plates</p>
+        <p>Upload images or videos to Detect Vehicle and License PLate and Open the Toll</p>
       </header>
 
       <main className="main-content">
