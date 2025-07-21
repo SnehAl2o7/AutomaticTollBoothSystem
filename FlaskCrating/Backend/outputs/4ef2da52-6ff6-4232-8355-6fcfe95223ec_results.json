@@ -1,0 +1,85 @@
+{
+  "type": "image",
+  "file_id": "4ef2da52-6ff6-4232-8355-6fcfe95223ec",
+  "timestamp": "2025-07-21T07:30:21.912892",
+  "vehicles_detected": 4,
+  "license_plates_detected": 1,
+  "processing_status": "completed",
+  "toll_gate": {
+    "status": "OPEN",
+    "message": "Toll gate is OPEN - 4 vehicle(s) detected",
+    "action": "Allow passage"
+  },
+  "TOLL_STATUS": "OPEN",
+  "vehicles": [
+    {
+      "bbox": [
+        114,
+        65,
+        927,
+        703
+      ],
+      "confidence": 0.9582962393760681,
+      "class": "truck",
+      "vehicle_id": 1
+    },
+    {
+      "bbox": [
+        0,
+        143,
+        226,
+        348
+      ],
+      "confidence": 0.9390062093734741,
+      "class": "car",
+      "vehicle_id": 2
+    },
+    {
+      "bbox": [
+        852,
+        226,
+        1023,
+        415
+      ],
+      "confidence": 0.8980915546417236,
+      "class": "car",
+      "vehicle_id": 3
+    },
+    {
+      "bbox": [
+        934,
+        171,
+        1023,
+        251
+      ],
+      "confidence": 0.7157056331634521,
+      "class": "car",
+      "vehicle_id": 4
+    }
+  ],
+  "license_plates": [
+    {
+      "text": "VZ494RT",
+      "confidence": 0.8,
+      "bbox": [
+        114,
+        447,
+        927,
+        703
+      ],
+      "vehicle_id": 1
+    }
+  ],
+  "statistics": {
+    "total_vehicles": 4,
+    "vehicles_with_plates": 1,
+    "vehicle_types": {
+      "truck": 1,
+      "car": 3
+    },
+    "license_plates": [
+      "VZ494RT"
+    ]
+  },
+  "processed_image": null
+}

@@ -1,0 +1,37 @@
+{
+  "type": "image",
+  "file_id": "b78a271c-782a-41ed-819b-863b622bc42a",
+  "timestamp": "2025-07-21T07:32:41.671543",
+  "vehicles_detected": 1,
+  "license_plates_detected": 0,
+  "processing_status": "completed",
+  "toll_gate": {
+    "status": "OPEN",
+    "message": "Toll gate is OPEN - 1 vehicle(s) detected",
+    "action": "Allow passage"
+  },
+  "TOLL_STATUS": "OPEN",
+  "vehicles": [
+    {
+      "bbox": [
+        0,
+        1,
+        265,
+        267
+      ],
+      "confidence": 0.9050042033195496,
+      "class": "car",
+      "vehicle_id": 1
+    }
+  ],
+  "license_plates": [],
+  "statistics": {
+    "total_vehicles": 1,
+    "vehicles_with_plates": 0,
+    "vehicle_types": {
+      "car": 1
+    },
+    "license_plates": []
+  },
+  "processed_image": null
+}

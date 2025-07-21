@@ -1,10 +1,16 @@
 {
   "type": "image",
-  "file_id": "dc12d74e-a2bb-441f-95b8-8cee0e7038c7",
-  "timestamp": "2025-07-21T05:23:08.736120",
+  "file_id": "068ffd9a-87d4-4e5a-b033-7daf35e923e1",
+  "timestamp": "2025-07-21T07:23:34.286553",
   "vehicles_detected": 1,
   "license_plates_detected": 1,
   "processing_status": "completed",
+  "toll_gate": {
+    "status": "OPEN",
+    "message": "Toll gate is OPEN - 1 vehicle(s) detected",
+    "action": "Allow passage"
+  },
+  "TOLL_STATUS": "OPEN",
   "vehicles": [
     {
       "bbox": [

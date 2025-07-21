@@ -1,0 +1,51 @@
+{
+  "type": "image",
+  "file_id": "bee8cb53-6989-4deb-b9dc-949c69d9c650",
+  "timestamp": "2025-07-21T07:30:47.011602",
+  "vehicles_detected": 1,
+  "license_plates_detected": 1,
+  "processing_status": "completed",
+  "toll_gate": {
+    "status": "OPEN",
+    "message": "Toll gate is OPEN - 1 vehicle(s) detected",
+    "action": "Allow passage"
+  },
+  "TOLL_STATUS": "OPEN",
+  "vehicles": [
+    {
+      "bbox": [
+        29,
+        0,
+        814,
+        301
+      ],
+      "confidence": 0.9254112839698792,
+      "class": "motorcycle",
+      "vehicle_id": 1
+    }
+  ],
+  "license_plates": [
+    {
+      "text": "NFIELD 3L4",
+      "confidence": 0.8,
+      "bbox": [
+        29,
+        120,
+        814,
+        240
+      ],
+      "vehicle_id": 1
+    }
+  ],
+  "statistics": {
+    "total_vehicles": 1,
+    "vehicles_with_plates": 1,
+    "vehicle_types": {
+      "motorcycle": 1
+    },
+    "license_plates": [
+      "NFIELD 3L4"
+    ]
+  },
+  "processed_image": null
+}

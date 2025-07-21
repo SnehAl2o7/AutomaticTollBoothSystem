@@ -27,6 +27,7 @@ class VehicleDetectionModel:
 
         logger.info("CarDetectionSystem initialized successfully!")
 
+    
     def detect_vehicles(self, image_path):
         """
         Detect vehicles using the CarDetectionSystem

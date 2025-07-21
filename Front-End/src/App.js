@@ -121,7 +121,7 @@ function App() {
   return (
     <div className="App">
       <header className="App-header">
-        <h1>🚗 Vehicle Detection & License Plate Recognition</h1>
+        <h1>🚗 AUTOMATIC TOLL BOOTH SYSTEM </h1>
         <p>Upload images or videos to detect vehicles and read license plates</p>
       </header>
 
@@ -212,7 +212,7 @@ function App() {
         {/* Results Section */}
         {results && (
           <div className="results-section">
-            <h2>🎯 Detection Results</h2>
+            <h2 >🎯 Detection Results</h2>
             {results.map((result, index) => (
               <div key={index} className="result-item">
                 <h3>📄 {result.filename}</h3>
@@ -230,6 +230,10 @@ function App() {
                   <div className="stat-item">
                     <span className="stat-label">File Type:</span>
                     <span className="stat-value">{result.type}</span>
+                  </div>
+                  <div className="stat-item">
+                    <span className="stat-label">TOLL GATE:</span>
+                    <span className="stat-value">{result.TOLL_STATUS}</span>
                   </div>
                   {result.type === 'video' && (
                     <div className="stat-item">
@@ -260,7 +264,7 @@ function App() {
                       {result.vehicles.map((vehicle, vIndex) => (
                         <div key={vIndex} className="detection-item">
                           <span className="detection-type">Type:</span>
-                          <span className="detection-value">{vehicle.class}</span>
+                          <span className="detection-value">{vehicle.class}</span><br></br>
                           <span className="detection-confidence">
                             Confidence: {(vehicle.confidence * 100).toFixed(1)}%
                           </span>

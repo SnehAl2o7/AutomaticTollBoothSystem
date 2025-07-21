@@ -38,6 +38,22 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 os.makedirs(OUTPUT_FOLDER, exist_ok=True)
 os.makedirs(MODEL_FOLDER, exist_ok=True)
 
+# Toll rates configuration - customize these rates as needed
+TOLL_RATES = {
+    'car': 50,
+    'truck': 100,
+    'bus': 80,
+    'motorcycle': 20,
+    'bicycle': 5,
+    'van': 60,
+    'suv': 55,
+    'auto': 25,
+    'rickshaw': 15,
+    'tempo': 70,
+    'vehicle': 50,  # default for unspecified vehicles
+    'unknown': 30   # fallback for unknown types
+}
+
 
 def allowed_file(filename):
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
@@ -46,6 +62,83 @@ def allowed_file(filename):
 def is_video_file(filename):
     video_extensions = {'mp4', 'avi', 'mov', 'mkv', 'webm'}
     return '.' in filename and filename.rsplit('.', 1)[1].lower() in video_extensions
+
+
+def get_toll_rate(vehicle_type):
+    """Get toll rate for a specific vehicle type"""
+    vehicle_type = vehicle_type.lower().strip()
+    
+    # Direct match
+    if vehicle_type in TOLL_RATES:
+        return TOLL_RATES[vehicle_type]
+    
+    # Fuzzy matching for common variations
+    if 'car' in vehicle_type:
+        return TOLL_RATES['car']
+    elif 'truck' in vehicle_type or 'lorry' in vehicle_type:
+        return TOLL_RATES['truck']
+    elif 'bus' in vehicle_type:
+        return TOLL_RATES['bus']
+    elif 'bike' in vehicle_type or 'motorcycle' in vehicle_type or 'motorbike' in vehicle_type:
+        return TOLL_RATES['motorcycle']
+    elif 'bicycle' in vehicle_type or 'cycle' in vehicle_type:
+        return TOLL_RATES['bicycle']
+    elif 'van' in vehicle_type:
+        return TOLL_RATES['van']
+    elif 'suv' in vehicle_type:
+        return TOLL_RATES['suv']
+    elif 'auto' in vehicle_type or 'rickshaw' in vehicle_type:
+        return TOLL_RATES['auto']
+    elif 'tempo' in vehicle_type:
+        return TOLL_RATES['tempo']
+    else:
+        # Default rate for unknown vehicle types
+        return TOLL_RATES['unknown']
+
+
+def calculate_toll_for_vehicles(vehicles):
+    """Calculate total toll tax for detected vehicles"""
+    vehicle_counts = {}
+    total_toll = 0
+    
+    # Count vehicles by type
+    for vehicle in vehicles:
+        vehicle_type = vehicle.get("class", "unknown").lower()
+        vehicle_counts[vehicle_type] = vehicle_counts.get(vehicle_type, 0) + 1
+    
+    # Calculate toll for each vehicle type
+    toll_breakdown = {}
+    for vehicle_type, count in vehicle_counts.items():
+        toll_rate = get_toll_rate(vehicle_type)  # Use local toll rate function
+        toll_amount = toll_rate * count
+        toll_breakdown[vehicle_type] = {
+            "count": count,
+            "rate_per_vehicle": toll_rate,
+            "total_amount": toll_amount
+        }
+        total_toll += toll_amount
+    
+    return {
+        "vehicle_counts": vehicle_counts,
+        "toll_breakdown": toll_breakdown,
+        "total_toll_amount": total_toll
+    }
+
+
+def get_toll_gate_status(vehicles_detected_count):
+    """Determine toll gate status based on vehicle detection"""
+    if vehicles_detected_count > 0:
+        return {
+            "status": "OPEN",
+            "message": f"Toll gate is OPEN - {vehicles_detected_count} vehicle(s) detected",
+            "action": "Allow passage"
+        }
+    else:
+        return {
+            "status": "CLOSED",
+            "message": "Toll gate is CLOSED - No vehicles detected",
+            "action": "Block passage"
+        }
 
 
 @app.route('/api/health', methods=['GET'])
@@ -184,6 +277,10 @@ def process_image(image_path, file_id, save_annotated=True):
                 processed_image_url = f"/api/download/{file_id}_processed.jpg"
                 logger.info(f"Annotated image saved: {processed_image_path}")
 
+        
+        # Get toll gate status
+        toll_gate = get_toll_gate_status(len(vehicles))
+
         # Prepare results
         results = {
             "type": "image",
@@ -192,6 +289,12 @@ def process_image(image_path, file_id, save_annotated=True):
             "vehicles_detected": len(vehicles),
             "license_plates_detected": len(license_plates),
             "processing_status": "completed",
+                        
+            # Toll gate status
+            "toll_gate": toll_gate,
+            
+            "TOLL_STATUS": toll_gate["status"],
+            
             "vehicles": vehicles,
             "license_plates": license_plates,
             "statistics": stats,
@@ -227,6 +330,14 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         # Calculate summary statistics
         total_vehicles = sum(len(detection['vehicles']) for detection in video_results['frame_detections'])
         total_plates = sum(len(detection['license_plates']) for detection in video_results['frame_detections'])
+        
+        # Collect all vehicles from all frames for toll calculation
+        all_vehicles = []
+        for frame_detection in video_results['frame_detections']:
+            all_vehicles.extend(frame_detection['vehicles'])
+        
+        # Get toll gate status
+        toll_gate = get_toll_gate_status(total_vehicles)
 
         # Prepare Flask API results
         results = {
@@ -239,12 +350,20 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
                 "processed_frames": video_results['processed_frames'],
                 "frame_skip": frame_skip
             },
+            
+            
+            # Toll gate status
+            "toll_gate": toll_gate,
+            
             "summary": {
                 "total_vehicles_detected": total_vehicles,
                 "total_license_plates_detected": total_plates,
                 "unique_vehicle_types": video_results['unique_vehicles'],
                 "unique_license_plates": video_results['unique_plates']
             },
+            
+            "TOLL_STATUS": toll_gate["status"],
+            
             "detections": video_results['frame_detections']
         }
 
@@ -253,7 +372,7 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
-        logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates")
+        logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates, Total toll: {toll_info['total_toll_amount']}")
         return results
 
     except Exception as e:
@@ -293,6 +412,50 @@ def get_results(file_id):
             return jsonify({"error": "Results not found"}), 404
     except Exception as e:
         logger.error(f"Results retrieval error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/toll/rates', methods=['GET'])
+def get_toll_rates():
+    """Get current toll rates for different vehicle types"""
+    try:
+        return jsonify({
+            "toll_rates": TOLL_RATES,
+            "currency": "INR",
+            "last_updated": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Toll rates retrieval error: {e}")
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route('/api/toll/rates', methods=['POST'])
+def update_toll_rates():
+    """Update toll rates for different vehicle types"""
+    try:
+        if not request.is_json:
+            return jsonify({"error": "Content-Type must be application/json"}), 400
+        
+        new_rates = request.get_json()
+        
+        # Validate that all rates are numeric
+        for vehicle_type, rate in new_rates.items():
+            if not isinstance(rate, (int, float)) or rate < 0:
+                return jsonify({"error": f"Invalid rate for {vehicle_type}. Must be a non-negative number."}), 400
+        
+        # Update the toll rates
+        TOLL_RATES.update(new_rates)
+        
+        logger.info(f"Toll rates updated: {new_rates}")
+        
+        return jsonify({
+            "message": "Toll rates updated successfully",
+            "updated_rates": new_rates,
+            "current_rates": TOLL_RATES,
+            "timestamp": datetime.now().isoformat()
+        })
+    except Exception as e:
+        logger.error(f"Toll rates update error: {e}")
         return jsonify({"error": str(e)}), 500
 
 
@@ -406,6 +569,8 @@ if __name__ == '__main__':
     logger.info("  GET  /api/results/<file_id> - Get results")
     logger.info("  GET  /api/download/<filename> - Download file")
     logger.info("  GET  /api/files - List files")
+    logger.info("  GET  /api/toll/rates - Get toll rates")
+    logger.info("  POST /api/toll/rates - Update toll rates")
     logger.info("  POST /api/cleanup - Cleanup temp files")
 
     app.run(debug=True, host='0.0.0.0', port=5000)

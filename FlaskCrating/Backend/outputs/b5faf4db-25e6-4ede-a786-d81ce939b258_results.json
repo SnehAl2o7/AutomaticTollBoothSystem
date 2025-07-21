@@ -1,0 +1,23 @@
+{
+  "type": "image",
+  "file_id": "b5faf4db-25e6-4ede-a786-d81ce939b258",
+  "timestamp": "2025-07-21T07:32:09.795558",
+  "vehicles_detected": 0,
+  "license_plates_detected": 0,
+  "processing_status": "completed",
+  "toll_gate": {
+    "status": "CLOSED",
+    "message": "Toll gate is CLOSED - No vehicles detected",
+    "action": "Block passage"
+  },
+  "TOLL_STATUS": "CLOSED",
+  "vehicles": [],
+  "license_plates": [],
+  "statistics": {
+    "total_vehicles": 0,
+    "vehicles_with_plates": 0,
+    "vehicle_types": {},
+    "license_plates": []
+  },
+  "processed_image": null
+}

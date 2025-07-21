@@ -2,13 +2,13 @@
 .App {
   text-align: center;
   min-height: 100vh;
-  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  background: linear-gradient(135deg, #000931 0%, #6a33a1 100%);
   padding: 20px;
   font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
 }
 
 .App-header {
-  background: rgba(255, 255, 255, 0.1);
+  background: rgba(201, 2, 2, 0.1);
   backdrop-filter: blur(10px);
   padding: 30px;
   border-radius: 20px;
@@ -17,14 +17,14 @@
 }
 
 .App-header h1 {
-  color: white;
+  color: rgba(141, 222, 11, 0.995);
   font-size: 2.5rem;
   margin-bottom: 10px;
   text-shadow: 2px 2px 4px rgba(0, 0, 0, 0.3);
 }
 
 .App-header p {
-  color: rgba(255, 255, 255, 0.9);
+  color: rgba(141, 222, 11, 0.995);
   font-size: 1.2rem;
   margin: 0;
 }
@@ -36,7 +36,7 @@
 
 /* Upload Section */
 .upload-section {
-  background: white;
+  background: rgb(133, 180, 238);
   padding: 40px;
   border-radius: 20px;
   box-shadow: 0 10px 40px rgba(0, 0, 0, 0.1);
@@ -49,7 +49,7 @@
   border-radius: 15px;
   padding: 60px 20px;
   transition: all 0.3s ease;
-  background: #f8f9ff;
+  background: #8d9bee;
   margin-bottom: 30px;
 }
 
