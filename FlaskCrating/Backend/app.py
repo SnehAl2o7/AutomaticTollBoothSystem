@@ -277,7 +277,9 @@ def process_image(image_path, file_id, save_annotated=True):
                 processed_image_url = f"/api/download/{file_id}_processed.jpg"
                 logger.info(f"Annotated image saved: {processed_image_path}")
 
-        
+        # Calculate toll charges
+        toll_info = calculate_toll_for_vehicles(vehicles)
+
         # Get toll gate status
         toll_gate = get_toll_gate_status(len(vehicles))
 
@@ -289,6 +291,10 @@ def process_image(image_path, file_id, save_annotated=True):
             "vehicles_detected": len(vehicles),
             "license_plates_detected": len(license_plates),
             "processing_status": "completed",
+            
+            # Toll rates
+            "total_rates": toll_info["total_toll_amount"],
+            "toll_breakdown": toll_info["toll_breakdown"],
                         
             # Toll gate status
             "toll_gate": toll_gate,
@@ -562,6 +568,9 @@ if __name__ == '__main__':
     logger.info("Starting Vehicle Detection Flask API...")
     logger.info(f"Upload folder: {UPLOAD_FOLDER}")
     logger.info(f"Output folder: {OUTPUT_FOLDER}")
+    logger.info("Current TOLL_RATES configuration:")
+    for vehicle_type, rate in TOLL_RATES.items():
+        logger.info(f"  - {vehicle_type}: ₹{rate}")
     logger.info("API endpoints available:")
     logger.info("  GET  /api/health - Health check")
     logger.info("  POST /api/upload - Upload file")
