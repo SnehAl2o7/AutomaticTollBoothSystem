@@ -1,7 +1,7 @@
-import cv2
+import cv2  # type: ignore
 import numpy as np
-from ultralytics import YOLO
-import easyocr
+from ultralytics import YOLO # type: ignore
+import easyocr #type: ignore
 import os
 import pandas as pd
 from PIL import Image
@@ -59,7 +59,6 @@ class CarDetectionSystem:
     def setup_license_plate_model(self):
         """
         Setup license plate detection model
-        You can download a custom trained model or use a pre-trained one
         """
         try:
             # Try to load a custom license plate model if available
