@@ -773,6 +773,7 @@ class CarDetectionSystem:
         if image is None:
             return
 
+        file_id = os.path.splitext(os.path.basename(image_path))[0]
         # Detect vehicles
         _, vehicles = self.detect_vehicles(image_path)
 
