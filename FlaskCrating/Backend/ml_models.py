@@ -7,7 +7,7 @@ from PIL import Image
 import torch # type: ignore
 import logging
 
-# Import your actual CarDetectionSystem
+# Import CarDetectionSystem
 from TollDetection import CarDetectionSystem
 
 # Set up logging
