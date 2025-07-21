@@ -1,10 +1,10 @@
 # ml_models.py - Integration with TollDetection.py
 
 import os
-import cv2
+import cv2 # type: ignore
 import numpy as np
 from PIL import Image
-import torch
+import torch # type: ignore
 import logging
 
 # Import your actual CarDetectionSystem

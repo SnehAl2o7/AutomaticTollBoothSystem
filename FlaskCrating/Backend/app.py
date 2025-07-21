@@ -372,7 +372,7 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
-        logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates, Total toll: {toll_info['total_toll_amount']}")
+        logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates")
         return results
 
     except Exception as e:
