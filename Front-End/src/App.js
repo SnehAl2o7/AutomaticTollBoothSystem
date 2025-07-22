@@ -17,7 +17,7 @@ function App() {
     const files = Array.from(event.target.files);
     const validFiles = files.filter(file => {
       const validTypes = ['image/jpeg', 'image/jpg', 'image/png', 'video/mp4', 'video/avi', 'video/mov'];
-      return validTypes.includes(file.type) && file.size <= 100 * 1024 * 1024; // 100MB limit
+      return validTypes.includes(file.type) && file.size <= 400 * 1024 * 1024; // 100MB limit
     });
 
     if (validFiles.length !== files.length) {
