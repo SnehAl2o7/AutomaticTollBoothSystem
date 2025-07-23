@@ -102,14 +102,8 @@ class CarDetectionSystem:
             print(f"Could not load image: {image_path}")
             return None, []
 
-        # Use higher resolution and better parameters
-        results = self.vehicle_model(
-            image,
-            imgsz=1280,  
-            conf=0.7,    
-            iou=0.5,     
-            augment=True 
-        )
+        # Run vehicle detection
+        results = self.vehicle_model(image, verbose=False)
 
         detected_vehicles = []
         for result in results:
@@ -152,6 +146,10 @@ class CarDetectionSystem:
         # 2. CLAHE (Contrast Limited Adaptive Histogram Equalization)
         clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         processed_images.append(clahe.apply(gray))
+
+        # Sharpening
+        kernel = np.array([[0,-1,0],[-1,5,-1],[0,-1,0]])
+        gray = cv2.filter2D(gray, -1, kernel)
     
         # 3. Adaptive Thresholding
         adaptive_thresh = cv2.adaptiveThreshold(
@@ -165,6 +163,10 @@ class CarDetectionSystem:
         kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         morph = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
         processed_images.append(morph)
+    
+        # 5. Edge detection
+        edges = cv2.Canny(gray, 50, 150)
+        processed_images.append(edges)
     
         # Process all variations
         license_plates = []
@@ -183,12 +185,13 @@ class CarDetectionSystem:
                 aspect_ratio = w / float(h)
                 if 2.5 < aspect_ratio < 5.0 and w > 50 and h > 15:
                     plate_region = processed_img[y:y+h, x:x+w]
-                    
+                
+                    # Additional validation - check for high edge density
                     edges = cv2.Canny(plate_region, 50, 150)
                     edge_density = cv2.countNonZero(edges) / float(w * h)
-
+                
                     if edge_density > 0.1:  # Only proceed if significant edges
-                    # Try OCR on the region
+                        # Try OCR on the region
                         text = self.extract_text_from_image(plate_region)
                         if self.is_valid_license_plate(text):
                             license_plates.append({
@@ -996,5 +999,5 @@ def analyze_results(csv_file):
 
     print("\nSample license plates detected:")
     valid_plates = df[df['license_plate'] != 'Not detected']['license_plate'].unique()
-    for plate in valid_plates[:80]:  # Show first 80
+    for plate in valid_plates[:80]:  # Show first 10
         print(f"  - {plate}")

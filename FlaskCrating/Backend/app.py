@@ -5,6 +5,7 @@ import numpy as np
 from werkzeug.utils import secure_filename
 import uuid
 import json
+from pymongo import MongoClient #type: ignore
 from datetime import datetime
 import base64
 import io
@@ -18,6 +19,21 @@ from ml_models import ml_model
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
+
+# MongoDB Configuration
+MONGODB_URI = "mongodb://localhost:27017/"  # Update with your MongoDB URI
+MONGODB_DB = "toll_system"
+MONGODB_COLLECTION = "detection_results"
+
+# Initialize MongoDB client
+try:
+    mongo_client = MongoClient(MONGODB_URI)
+    mongo_db = mongo_client[MONGODB_DB]
+    mongo_collection = mongo_db[MONGODB_COLLECTION]
+    logger.info("Connected to MongoDB successfully")
+except Exception as e:
+    logger.error(f"Failed to connect to MongoDB: {e}")
+    mongo_client = None
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
@@ -98,37 +114,32 @@ def get_toll_rate(vehicle_type):
 
 def calculate_toll_for_vehicles(vehicles, license_plates):
     """Calculate total toll tax only for vehicles with detected license plates"""
+    plates_for_vehicle = {p['vehicle_id'] for p in license_plates}
+
     vehicle_counts = {}
     total_toll = 0
-    
-    # Create a set of vehicle IDs that have license plates
-    vehicles_with_plates = {plate['vehicle_id'] for plate in license_plates}
-    
-    # Count vehicles by type (only those with plates)
-    for vehicle in vehicles:
-        vehicle_id = vehicle.get("vehicle_id")
-        if vehicle_id in vehicles_with_plates:
-            vehicle_type = vehicle.get("class", "unknown").lower()
-            vehicle_counts[vehicle_type] = vehicle_counts.get(vehicle_type, 0) + 1
-    
-    # Calculate toll for each vehicle type
     toll_breakdown = {}
-    for vehicle_type, count in vehicle_counts.items():
-        toll_rate = get_toll_rate(vehicle_type)
-        toll_amount = toll_rate * count
-        toll_breakdown[vehicle_type] = {
-            "count": count,
-            "rate_per_vehicle": toll_rate,
-            "total_amount": toll_amount
-        }
-        total_toll += toll_amount
-    
+
+    for v in vehicles:
+        vid = v.get("vehicle_id")
+        if vid not in plates_for_vehicle:
+            continue          # skip if no plate
+
+        vtype = v.get("class", "unknown").lower()
+        vehicle_counts[vtype] = vehicle_counts.get(vtype, 0) + 1
+
+    for vtype, cnt in vehicle_counts.items():
+        rate   = get_toll_rate(vtype)
+        amount = rate * cnt
+        toll_breakdown[vtype] = {"count": cnt, "rate": rate, "total": amount}
+        total_toll += amount
+
     return {
         "vehicle_counts": vehicle_counts,
         "toll_breakdown": toll_breakdown,
         "total_toll_amount": total_toll,
-        "vehicles_with_plates": len(vehicles_with_plates),
-        "vehicles_without_plates": len(vehicles) - len(vehicles_with_plates)
+        "vehicles_with_plates": len(plates_for_vehicle),
+        "vehicles_without_plates": len(vehicles) - len(plates_for_vehicle)
     }
 
 
@@ -328,8 +339,11 @@ def process_image(image_path, file_id, save_annotated=True):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
+        save_to_mongodb(results)
+
         logger.info(f"Image processing completed: {len(vehicles)} vehicles, {len(license_plates)} plates")
         return results
+    
 
     except Exception as e:
         logger.error(f"Image processing error: {e}")
@@ -394,6 +408,8 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
+        save_to_mongodb(results)
+
         logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates")
         return results
 
@@ -401,6 +417,26 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         logger.error(f"Video processing error: {e}")
         logger.error(traceback.format_exc())
         return None
+
+def save_to_mongodb(results):
+    """Save processing results to MongoDB"""
+    if not mongo_client:
+        logger.warning("MongoDB not available, skipping save")
+        return False
+    
+    try:
+        # Add timestamp if not present
+        if 'timestamp' not in results:
+            results['timestamp'] = datetime.now().isoformat()
+        
+        # Insert the document
+        result = mongo_collection.insert_one(results)
+        
+        logger.info(f"Saved results to MongoDB with ID: {result.inserted_id}")
+        return True
+    except Exception as e:
+        logger.error(f"Error saving to MongoDB: {e}")
+        return False
 
 
 @app.route('/api/download/<filename>')
