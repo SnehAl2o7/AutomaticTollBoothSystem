@@ -102,8 +102,14 @@ class CarDetectionSystem:
             print(f"Could not load image: {image_path}")
             return None, []
 
-        # Run vehicle detection
-        results = self.vehicle_model(image, verbose=False)
+        # Use higher resolution and better parameters
+        results = self.vehicle_model(
+            image,
+            imgsz=1280,  
+            conf=0.7,    
+            iou=0.5,     
+            augment=True 
+        )
 
         detected_vehicles = []
         for result in results:
@@ -113,7 +119,7 @@ class CarDetectionSystem:
                     class_id = int(box.cls[0])
                     confidence = float(box.conf[0])
 
-                    if class_id in self.vehicle_classes and confidence > 0.5:
+                    if class_id in self.vehicle_classes and confidence > 0.6:
                         x1, y1, x2, y2 = box.xyxy[0].cpu().numpy()
                         vehicle_type = self.vehicle_classes[class_id]
 
@@ -131,7 +137,7 @@ class CarDetectionSystem:
         vehicle_crop = image[y1:y2, x1:x2]
     
         # Skip if vehicle crop is too small
-        if vehicle_crop.size < 500:
+        if vehicle_crop.size < 1000:
             return []
 
         # Convert to grayscale
@@ -141,28 +147,24 @@ class CarDetectionSystem:
         processed_images = []
 
         # 1. Original grayscale
-        processed_images.append(gray)
+        processed_images.append(cv2.bilateralFilter(gray, 9, 75, 75))
     
         # 2. CLAHE (Contrast Limited Adaptive Histogram Equalization)
-        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        clahe = cv2.createCLAHE(clipLimit=3.0, tileGridSize=(8, 8))
         processed_images.append(clahe.apply(gray))
     
         # 3. Adaptive Thresholding
         adaptive_thresh = cv2.adaptiveThreshold(
             gray, 255, 
             cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
-            cv2.THRESH_BINARY, 11, 2
+            cv2.THRESH_BINARY, 15, 5
         )
         processed_images.append(adaptive_thresh)
     
         # 4. Morphological operations
-        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (5, 5))
         morph = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
         processed_images.append(morph)
-    
-        # 5. Edge detection
-        edges = cv2.Canny(gray, 50, 150)
-        processed_images.append(edges)
     
         # Process all variations
         license_plates = []
@@ -170,7 +172,7 @@ class CarDetectionSystem:
             # Find contours to locate potential plate regions
             contours, _ = cv2.findContours(
                 processed_img.copy(), 
-                cv2.RETR_EXTERNAL, 
+                cv2.RETR_TREE, 
                 cv2.CHAIN_APPROX_SIMPLE
             )
         
@@ -179,19 +181,25 @@ class CarDetectionSystem:
             
                 # Filter based on aspect ratio (typical for license plates)
                 aspect_ratio = w / float(h)
-                if 2.0 < aspect_ratio < 6.0 and w > 30 and h > 10:
+                if 2.5 < aspect_ratio < 5.0 and w > 50 and h > 15:
                     plate_region = processed_img[y:y+h, x:x+w]
-                
+                    
+                    edges = cv2.Canny(plate_region, 50, 150)
+                    edge_density = cv2.countNonZero(edges) / float(w * h)
+
+                    if edge_density > 0.1:  # Only proceed if significant edges
                     # Try OCR on the region
-                    text = self.extract_text_from_image(plate_region)
-                    if self.is_valid_license_plate(text):
-                        license_plates.append({
-                            'text': text,
-                            'region': (x + x1, y + y1, x + w + x1, y + h + y1),
-                            'confidence': 0.9  # Higher confidence for this method
-                        })
+                        text = self.extract_text_from_image(plate_region)
+                        if self.is_valid_license_plate(text):
+                            license_plates.append({
+                                'text': text,
+                                'region': (x + x1, y + y1, x + w + x1, y + h + y1),
+                                'confidence': min(0.9 + (edge_density * 0.5), 0.99)  
+                            })
     
-        return license_plates
+        if license_plates:
+            return [max(license_plates, key=lambda x: x['confidence'])]
+        return []
 
     def preprocess_for_ocr(self, gray_image):
         """Apply various preprocessing techniques for better OCR"""
