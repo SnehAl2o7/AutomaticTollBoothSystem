@@ -228,3 +228,7 @@ package-lock.json
 #images
 .jpeg
 .jpg
+
+#models
+.pt
+.th

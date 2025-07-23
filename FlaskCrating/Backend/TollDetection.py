@@ -19,28 +19,47 @@ class CarDetectionSystem:
         """Initialize the car detection system with all required models"""
         logger.info("Initializing CarDetectionSystem...")
 
-        # Initialize YOLOv8 models
+        # Initialize YOLOv8 models with better parameters
         try:
-            self.vehicle_model = YOLO('yolov8m.pt')  # Pre-trained model for vehicle detection
+            # Use larger model for better accuracy
+            self.vehicle_model = YOLO('yolov8x.pt')  # Changed from 'yolov8m' to 'yolov8x'
             self.vehicle_model.verbose = False
-            logger.info(" Vehicle detection model loaded successfully")
+        
+            # Set confidence thresholds
+            self.vehicle_model.conf = 0.6  # Higher confidence threshold
+            self.vehicle_model.iou = 0.45  # Intersection over Union threshold
+        
+            logger.info("Vehicle detection model loaded successfully")
         except Exception as e:
-            logger.error(f" Failed to load vehicle model: {e}")
+            logger.error(f"Failed to load vehicle model: {e}")
             self.vehicle_model = None
 
-        self.license_plate_model = None
-
-        # Initialize OCR reader
+        # Initialize OCR reader with better parameters
         try:
-            self.ocr_reader = easyocr.Reader(['en'], gpu=True)  # Set gpu=False if no GPU
-            logger.info(" OCR reader initialized successfully")
+            self.ocr_reader = easyocr.Reader(
+                ['en'], 
+                gpu=True,
+                model_storage_directory='models',
+                user_network_directory='models',
+                download_enabled=True,
+                recognizer=True,
+                detector=True,
+                verbose=False,
+                quantize=True  # Reduces model size without significant accuracy loss
+            )
+            logger.info("OCR reader initialized successfully")
         except Exception as e:
-            logger.warning(f" Failed to initialize OCR with GPU, trying CPU: {e}")
+            logger.warning(f"Failed to initialize OCR with GPU, trying CPU: {e}")
             try:
-                self.ocr_reader = easyocr.Reader(['en'], gpu=False)
-                logger.info(" OCR reader initialized with CPU")
+                self.ocr_reader = easyocr.Reader(
+                ['en'], 
+                gpu=False,
+                model_storage_directory='models',
+                user_network_directory='models'
+                )
+                logger.info("OCR reader initialized with CPU")
             except Exception as e2:
-                logger.error(f" Failed to initialize OCR: {e2}")
+                logger.error(f"Failed to initialize OCR: {e2}")
                 self.ocr_reader = None
 
         # Vehicle class mapping for YOLO COCO dataset
@@ -107,36 +126,71 @@ class CarDetectionSystem:
         return image, detected_vehicles
 
     def extract_license_plate_region(self, image, vehicle_bbox):
-        """Extract potential license plate regions from vehicle"""
+        """Enhanced license plate extraction with better preprocessing"""
         x1, y1, x2, y2 = vehicle_bbox
         vehicle_crop = image[y1:y2, x1:x2]
+    
+        # Skip if vehicle crop is too small
+        if vehicle_crop.size < 500:
+            return []
 
-        h, w = vehicle_crop.shape[:2]
+        # Convert to grayscale
+        gray = cv2.cvtColor(vehicle_crop, cv2.COLOR_BGR2GRAY)
+    
+        # Enhanced preprocessing pipeline
+        processed_images = []
 
-        regions = [
-            (0, int(h*0.6), w, h),  # Bottom region
-            (0, int(h*0.4), w, int(h*0.8)),  # Middle-bottom region
-        ]
-
+        # 1. Original grayscale
+        processed_images.append(gray)
+    
+        # 2. CLAHE (Contrast Limited Adaptive Histogram Equalization)
+        clahe = cv2.createCLAHE(clipLimit=2.0, tileGridSize=(8, 8))
+        processed_images.append(clahe.apply(gray))
+    
+        # 3. Adaptive Thresholding
+        adaptive_thresh = cv2.adaptiveThreshold(
+            gray, 255, 
+            cv2.ADAPTIVE_THRESH_GAUSSIAN_C,
+            cv2.THRESH_BINARY, 11, 2
+        )
+        processed_images.append(adaptive_thresh)
+    
+        # 4. Morphological operations
+        kernel = cv2.getStructuringElement(cv2.MORPH_RECT, (3, 3))
+        morph = cv2.morphologyEx(adaptive_thresh, cv2.MORPH_CLOSE, kernel)
+        processed_images.append(morph)
+    
+        # 5. Edge detection
+        edges = cv2.Canny(gray, 50, 150)
+        processed_images.append(edges)
+    
+        # Process all variations
         license_plates = []
-
-        for region in regions:
-            rx1, ry1, rx2, ry2 = region
-            region_crop = vehicle_crop[ry1:ry2, rx1:rx2]
-
-            gray = cv2.cvtColor(region_crop, cv2.COLOR_BGR2GRAY)
-
-            processed_images = self.preprocess_for_ocr(gray)
-
-            for processed_img in processed_images:
-                text = self.extract_text_from_image(processed_img)
-                if self.is_valid_license_plate(text):
-                    license_plates.append({
-                        'text': text,
-                        'region': (rx1 + x1, ry1 + y1, rx2 + x1, ry2 + y1),
-                        'confidence': 0.8
-                    })
-
+        for processed_img in processed_images:
+            # Find contours to locate potential plate regions
+            contours, _ = cv2.findContours(
+                processed_img.copy(), 
+                cv2.RETR_EXTERNAL, 
+                cv2.CHAIN_APPROX_SIMPLE
+            )
+        
+            for contour in contours:
+                x, y, w, h = cv2.boundingRect(contour)
+            
+                # Filter based on aspect ratio (typical for license plates)
+                aspect_ratio = w / float(h)
+                if 2.0 < aspect_ratio < 6.0 and w > 30 and h > 10:
+                    plate_region = processed_img[y:y+h, x:x+w]
+                
+                    # Try OCR on the region
+                    text = self.extract_text_from_image(plate_region)
+                    if self.is_valid_license_plate(text):
+                        license_plates.append({
+                            'text': text,
+                            'region': (x + x1, y + y1, x + w + x1, y + h + y1),
+                            'confidence': 0.9  # Higher confidence for this method
+                        })
+    
         return license_plates
 
     def preprocess_for_ocr(self, gray_image):
@@ -182,26 +236,33 @@ class CarDetectionSystem:
             return ''
 
     def is_valid_license_plate(self, text):
-        """Check if extracted text looks like a license plate"""
+        """More robust license plate validation"""
         if not text or len(text.strip()) < 3:
-            return False
+         return False
 
+        # Clean the text
         clean_text = re.sub(r'[^A-Z0-9]', '', text.upper())
-
+    
+        # Common Indian license plate patterns
         patterns = [
-            r'^[A-Z]{1,3}[0-9]{1,4}[A-Z]{0,2}$',
-            r'^[0-9]{1,3}[A-Z]{1,3}[0-9]{1,4}$',
-            r'^[A-Z0-9]{4,8}$',
+            r'^[A-Z]{2}[0-9]{1,2}[A-Z]{0,2}[0-9]{4}$',  # Standard pattern (e.g., MH01AB1234)
+            r'^[A-Z]{3}[0-9]{4}$',                       # Old pattern (e.g., ABC1234)
+            r'^[0-9]{4}[A-Z]{3}$',                       # Some commercial vehicles
+            r'^[A-Z]{1,2}[0-9]{1,4}[A-Z]{1,3}$',         # Variants
+            r'^[A-Z]{2}[0-9]{3,4}$',                     # Short forms
         ]
 
+        # Check if any pattern matches
         for pattern in patterns:
-            if re.match(pattern, clean_text):
+            if re.fullmatch(pattern, clean_text):
                 return True
 
+        # Additional checks
         has_letter = any(c.isalpha() for c in clean_text)
         has_number = any(c.isdigit() for c in clean_text)
-
-        return has_letter and has_number and 3 <= len(clean_text) <= 10
+        length_ok = 4 <= len(clean_text) <= 10
+    
+        return has_letter and has_number and length_ok
 
     def process_single_image(self, image_path):
         """Process a single image and extract vehicle info"""
@@ -927,5 +988,5 @@ def analyze_results(csv_file):
 
     print("\nSample license plates detected:")
     valid_plates = df[df['license_plate'] != 'Not detected']['license_plate'].unique()
-    for plate in valid_plates[:10]:  # Show first 10
+    for plate in valid_plates[:80]:  # Show first 80
         print(f"  - {plate}")

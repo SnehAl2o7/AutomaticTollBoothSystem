@@ -11,6 +11,8 @@ function App() {
   const [results, setResults] = useState(null);
   const [error, setError] = useState('');
   const [uploadProgress, setUploadProgress] = useState(0);
+  const [tollRates, setTollRates] = useState(null);
+  const [showTollRates, setShowTollRates] = useState(false);
 
   // Handle file selection
   const handleFileSelect = (event) => {
@@ -110,6 +112,18 @@ function App() {
     }
   };
 
+  //fetch toll rates
+  const fetchTollRates = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/toll/rates`);
+      setTollRates(response.data.toll_rates);
+      setShowTollRates(true);
+    } catch (error) {
+      setError('Failed to fetch toll rates');
+    }
+  };
+
+
   // Clear all data
   const handleClear = () => {
     setSelectedFiles([]);
@@ -178,6 +192,12 @@ function App() {
               {uploading ? 'Uploading...' : processing ? 'Processing...' : 'Process Files'}
             </button>
             <button 
+              onClick={fetchTollRates}
+              className="toll-rates-button"
+            >
+              View Toll Rates
+            </button>
+            <button 
               onClick={handleClear}
               className="clear-button"
             >
@@ -208,6 +228,27 @@ function App() {
             </div>
           )}
         </div>
+        {/* The is the toll rate section */}
+        {showTollRates && (
+          <div className="toll-rates-section">
+            <h2>💰 Current Toll Rates</h2>
+            <button 
+              onClick={() => setShowTollRates(false)}
+              className="close-button"
+            >
+              Close
+            </button>
+            <div className="toll-rates-grid">
+              {Object.entries(tollRates).map(([vehicleType, rate]) => (
+                <div key={vehicleType} className="toll-rate-item">
+                  <span className="vehicle-type">{vehicleType.toUpperCase()}:</span>
+                  <span className="rate-value">₹{rate}</span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
 
         {/* Results Section */}
         {results && (
@@ -260,19 +301,51 @@ function App() {
                 {result.vehicles && result.vehicles.length > 0 && (
                   <div className="detection-details">
                     <h4>🚗 Vehicle Detections:</h4>
-                    <div className="detection-list">
-                      {result.vehicles.map((vehicle, vIndex) => (
-                        <div key={vIndex} className="detection-item">
-                          <span className="detection-type">Type:</span>
-                          <span className="detection-value">{vehicle.class}</span><br></br>
-                          <span className="detection-confidence">
-                            Confidence: {(vehicle.confidence * 100).toFixed(1)}%
-                          </span>
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
+                      <div className="vehicle-stats">
+      <div className="stat-item">
+        <span className="stat-label">Total Vehicles:</span>
+        <span className="stat-value">{result.vehicles.length}</span>
+      </div>
+      <div className="stat-item">
+        <span className="stat-label">Total Toll Due:</span>
+        <span className="stat-value">₹{result.vehicles.reduce((sum, vehicle) => sum + (vehicle.toll_amount || 0), 0)}</span>
+      </div>
+    </div>
+    <div className="detection-list">
+      {result.vehicles.map((vehicle, vIndex) => (
+        <div key={vIndex} className="detection-item vehicle-item">
+          <div className="vehicle-header">
+            <span className="vehicle-type">{vehicle.class.toUpperCase()}</span>
+            <span className="toll-amount">₹{vehicle.toll_amount || 'N/A'}</span>
+          </div>
+          <div className="vehicle-details">
+            <div className="detail-row">
+              <span className="detail-label">Confidence:</span>
+              <span className="detail-value">{(vehicle.confidence * 100).toFixed(1)}%</span>
+            </div>
+            <div className="detail-row">
+              <span className="detail-label">Position:</span>
+              <span className="detail-value">
+                [{vehicle.bbox[0]}, {vehicle.bbox[1]}] to [{vehicle.bbox[2]}, {vehicle.bbox[3]}]
+              </span>
+            </div>
+            {vehicle.license_plates && vehicle.license_plates.length > 0 && (
+              <div className="detail-row">
+                <span className="detail-label">License Plate:</span>
+                <span className="detail-value plate">
+                  {vehicle.license_plates[0].text}
+                  <span className="plate-confidence">
+                    ({(vehicle.license_plates[0].confidence * 100).toFixed(1)}%)
+                  </span>
+                </span>
+              </div>
+            )}
+          </div>
+        </div>
+      ))}
+    </div>
+  </div>
+)}
 
                 {result.license_plates && result.license_plates.length > 0 && (
                   <div className="detection-details">
@@ -289,7 +362,7 @@ function App() {
                     </div>
                   </div>
                 )}
-
+                {/*for the toll rates section*/}
                 {/* Video Timeline (for videos) */}
                 {result.type === 'video' && result.detections && (
                   <div className="video-timeline">

@@ -34,6 +34,154 @@
   margin: 0 auto;
 }
 
+/* Toll Rates Section */
+.toll-rates-section {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 20px;
+  margin-top: 20px;
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+  position: relative;
+}
+
+.toll-rates-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(150px, 1fr));
+  gap: 15px;
+  margin-top: 15px;
+}
+
+.toll-rate-item {
+  background-color: white;
+  padding: 10px;
+  border-radius: 5px;
+  box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+  display: flex;
+  justify-content: space-between;
+}
+
+.vehicle-type {
+  font-weight: bold;
+  color: #333;
+}
+
+.rate-value {
+  color: #28a745;
+  font-weight: bold;
+}
+
+.toll-rates-button {
+  background-color: #17a2b8;
+  color: white;
+  border: none;
+  padding: 10px 15px;
+  border-radius: 5px;
+  cursor: pointer;
+  margin-left: 10px;
+  transition: background-color 0.3s;
+}
+
+.toll-rates-button:hover {
+  background-color: #138496;
+}
+
+.close-button {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  background: none;
+  border: none;
+  font-size: 1.2em;
+  cursor: pointer;
+  color: #6c757d;
+}
+
+/* Vehicle Detection Styles */
+.vehicle-item {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+  margin-bottom: 12px;
+  border-left: 4px solid #17a2b8;
+}
+
+.vehicle-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 8px;
+}
+
+.vehicle-type {
+  font-weight: bold;
+  font-size: 1.1em;
+  color: #333;
+}
+
+.toll-amount {
+  background-color: #28a745;
+  color: white;
+  padding: 4px 8px;
+  border-radius: 4px;
+  font-weight: bold;
+}
+
+.vehicle-details {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+
+.detail-row {
+  display: flex;
+  gap: 6px;
+}
+
+.detail-label {
+  font-weight: bold;
+  color: #6c757d;
+}
+
+.detail-value {
+  color: #495057;
+}
+
+.plate {
+  font-family: monospace;
+  font-size: 1.1em;
+  letter-spacing: 1px;
+}
+
+.plate-confidence {
+  font-size: 0.8em;
+  color: #6c757d;
+  margin-left: 6px;
+}
+
+.vehicle-stats {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 15px;
+  padding: 10px;
+  background-color: #e9ecef;
+  border-radius: 6px;
+}
+
+.vehicle-stats .stat-item {
+  display: flex;
+  gap: 6px;
+}
+
+.vehicle-stats .stat-label {
+  font-weight: bold;
+}
+
+.vehicle-stats .stat-value {
+  color: #28a745;
+  font-weight: bold;
+}
+
+
 /* Upload Section */
 .upload-section {
   background: rgb(133, 180, 238);

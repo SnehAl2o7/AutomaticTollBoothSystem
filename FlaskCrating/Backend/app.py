@@ -27,7 +27,7 @@ UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
 MODEL_FOLDER = 'models'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov', 'mkv', 'webm'}
-MAX_CONTENT_LENGTH = 100 * 1024 * 1024  # 100MB max file size
+MAX_CONTENT_LENGTH = 400 * 1024 * 1024  # 100MB max file size
 
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
@@ -96,20 +96,25 @@ def get_toll_rate(vehicle_type):
         return TOLL_RATES['unknown']
 
 
-def calculate_toll_for_vehicles(vehicles):
-    """Calculate total toll tax for detected vehicles"""
+def calculate_toll_for_vehicles(vehicles, license_plates):
+    """Calculate total toll tax only for vehicles with detected license plates"""
     vehicle_counts = {}
     total_toll = 0
     
-    # Count vehicles by type
+    # Create a set of vehicle IDs that have license plates
+    vehicles_with_plates = {plate['vehicle_id'] for plate in license_plates}
+    
+    # Count vehicles by type (only those with plates)
     for vehicle in vehicles:
-        vehicle_type = vehicle.get("class", "unknown").lower()
-        vehicle_counts[vehicle_type] = vehicle_counts.get(vehicle_type, 0) + 1
+        vehicle_id = vehicle.get("vehicle_id")
+        if vehicle_id in vehicles_with_plates:
+            vehicle_type = vehicle.get("class", "unknown").lower()
+            vehicle_counts[vehicle_type] = vehicle_counts.get(vehicle_type, 0) + 1
     
     # Calculate toll for each vehicle type
     toll_breakdown = {}
     for vehicle_type, count in vehicle_counts.items():
-        toll_rate = get_toll_rate(vehicle_type)  # Use local toll rate function
+        toll_rate = get_toll_rate(vehicle_type)
         toll_amount = toll_rate * count
         toll_breakdown[vehicle_type] = {
             "count": count,
@@ -121,7 +126,9 @@ def calculate_toll_for_vehicles(vehicles):
     return {
         "vehicle_counts": vehicle_counts,
         "toll_breakdown": toll_breakdown,
-        "total_toll_amount": total_toll
+        "total_toll_amount": total_toll,
+        "vehicles_with_plates": len(vehicles_with_plates),
+        "vehicles_without_plates": len(vehicles) - len(vehicles_with_plates)
     }
 
 
@@ -278,11 +285,26 @@ def process_image(image_path, file_id, save_annotated=True):
                 logger.info(f"Annotated image saved: {processed_image_path}")
 
         # Calculate toll charges
-        toll_info = calculate_toll_for_vehicles(vehicles)
+        toll_info = calculate_toll_for_vehicles(vehicles, license_plates)
 
         # Get toll gate status
         toll_gate = get_toll_gate_status(len(vehicles))
 
+         # Enhance vehicle data with toll rates
+        enhanced_vehicles = []
+        for vehicle in vehicles:
+            vehicle_type = vehicle.get("class", "unknown").lower()
+            toll_rate = get_toll_rate(vehicle_type)
+            has_plate = any(plate['vehicle_id'] == vehicle.get("vehicle_id") for plate in license_plates)
+    
+            enhanced_vehicle = {
+                **vehicle,
+                "toll_rate": toll_rate if has_plate else 0,
+                "toll_amount": toll_rate if has_plate else 0,
+                "has_license_plate": has_plate
+            }
+            enhanced_vehicles.append(enhanced_vehicle)
+        
         # Prepare results
         results = {
             "type": "image",
@@ -290,17 +312,14 @@ def process_image(image_path, file_id, save_annotated=True):
             "timestamp": datetime.now().isoformat(),
             "vehicles_detected": len(vehicles),
             "license_plates_detected": len(license_plates),
-            "processing_status": "completed",
-            
-                        
+            "processing_status": "completed",          
             # Toll gate status
             "toll_gate": toll_gate,
-            
             "TOLL_STATUS": toll_gate["status"],
-            
             "vehicles": vehicles,
             "license_plates": license_plates,
             "statistics": stats,
+            "toll_breakdown": toll_info,  # Include the full toll breakdown
             "processed_image": processed_image_url
         }
 
