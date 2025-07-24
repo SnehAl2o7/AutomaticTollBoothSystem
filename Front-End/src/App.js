@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import axios from 'axios';
 import './App.css';
 
@@ -13,7 +13,8 @@ function App() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [tollRates, setTollRates] = useState(null);
   const [showTollRates, setShowTollRates] = useState(false);
-
+  const[view, setView] = useState("main");
+  const[activeAlert, setActiveAlert] = useState(null);
   // Handle file selection
   const handleFileSelect = (event) => {
     const files = Array.from(event.target.files);
@@ -132,29 +133,80 @@ function App() {
     setUploadProgress(0);
   };
 
+  // checking for alert
+  useEffect(() => {
+    const checkForAlerts = async () => {
+      if (!results) return;
+      
+      try {
+        // Check all detected plates in results
+        for (const result of results) {
+          if (result.license_plates && result.license_plates.length > 0) {
+            for (const plate of result.license_plates) {
+              const response = await axios.get(
+                `${API_BASE_URL}/check_alert/${plate.text}`
+              );
+              if (response.data.is_alert) {
+                setActiveAlert(response.data.alert);
+                break;
+              }
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error checking alerts:", error);
+      }
+    };
+
+    checkForAlerts();
+  }, [results]);
+
   return (
     <div className="App">
       <header className="App-header">
         <h1>🚗 AUTOMATIC TOLL BOOTH SYSTEM </h1>
         <p>Upload images or videos to Detect Vehicle and License PLate and Open the Toll</p>
+        <div className="nav-buttons">
+          <button 
+            onClick={() => setView("main")}
+            className={view === "main" ? "active" : ""}
+          >
+            Main System
+          </button>
+          <button 
+            onClick={() => setView("plates")}
+            className={view === "plates" ? "active" : ""}
+          >
+            License Plate Database
+          </button>
+          <button 
+            onClick={() => setView("alerts")}
+            className={view === "alerts" ? "active" : ""}
+          >
+            Alert System
+          </button>
+        </div>
+      
       </header>
 
       <main className="main-content">
         {/* File Upload Section */}
-        <div className="upload-section">
+        {view === "main" && (
+
+          <div className="upload-section">
           <div 
             className="drop-zone"
             onDrop={handleDrop}
             onDragOver={handleDragOver}
           >
-            <input
+          <input
               type="file"
               multiple
               accept="image/*,video/*"
               onChange={handleFileSelect}
               className="file-input"
               id="file-input"
-            />
+          />
             <label htmlFor="file-input" className="file-label">
               <div className="drop-content">
                 <span className="upload-icon">📁</span>
@@ -228,6 +280,24 @@ function App() {
             </div>
           )}
         </div>
+        )}
+
+        {view === "plates" && <LicensePlatesView />}
+        {view === "alerts" && <AlertSystem />}
+        
+         {/* Alert popup */}
+        {activeAlert && (
+          <div className="alert-popup">
+            <div className="alert-content">
+              <h3>🚨 ALERT 🚨</h3>
+              <p>License Plate: {activeAlert.plate_number}</p>
+              <p>Reason: {activeAlert.reason}</p>
+              <p>This vehicle has been flagged!</p>
+              <button onClick={() => setActiveAlert(null)}>Acknowledge</button>
+            </div>
+          </div>
+        )}
+
         {/* The is the toll rate section */}
         {showTollRates && (
           <div className="toll-rates-section">
@@ -402,5 +472,142 @@ function App() {
   );
 }
 
+
+
+// Adding License Plate View and Alert System
+
+function LicensePlatesView() {
+  const [plates, setPlates] = useState([]);
+  const [loading, setLoading] = useState(false);
+
+  const fetchPlates = async () => {
+    setLoading(true);
+    try {
+      const response = await axios.get(`${API_BASE_URL}/plates`);
+      setPlates(response.data);
+    } catch (error) {
+      console.error("Error fetching plates:", error);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    fetchPlates();
+  }, []);
+
+  return (
+    <div className="plates-view">
+      <h2>🚗 License Plate Database</h2>
+      <button onClick={fetchPlates} className="refresh-button">
+        🔄 Refresh
+      </button>
+      
+      {loading ? (
+        <p>Loading...</p>
+      ) : (
+        <div className="plates-grid">
+          {plates.map((plate, index) => (
+            <div key={index} className="plate-card">
+              <div className="plate-number">{plate.plate}</div>
+              <div className="plate-details">
+                <span>Vehicle: {plate.vehicle_type}</span>
+                <span>Detected: {new Date(plate.timestamp).toLocaleString()}</span>
+                <a 
+                  href={`http://localhost:5000/api/download/${plate.file_id}_processed.jpg`} 
+                  target="_blank"
+                  rel="noopener noreferrer"
+                >
+                  View Image
+                </a>
+              </div>
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function AlertSystem() {
+  const [alerts, setAlerts] = useState([]);
+  const [newPlate, setNewPlate] = useState("");
+  const [reason, setReason] = useState("Stolen vehicle");
+  const [activeAlert, setActiveAlert] = useState(null);
+
+  const fetchAlerts = async () => {
+    try {
+      const response = await axios.get(`${API_BASE_URL}/alerts`);
+      setAlerts(response.data);
+    } catch (error) {
+      console.error("Error fetching alerts:", error);
+    }
+  };
+
+  const addAlert = async () => {
+    if (!newPlate.trim()) return;
+    
+    try {
+      await axios.post(`${API_BASE_URL}/alerts`, {
+        plate_number: newPlate,
+        reason: reason
+      });
+      setNewPlate("");
+      fetchAlerts();
+    } catch (error) {
+      console.error("Error adding alert:", error);
+    }
+  };
+
+  useEffect(() => {
+    fetchAlerts();
+  }, []);
+
+  return (
+    <div className="alert-system">
+      <h2>🚨 Alert Management</h2>
+      
+      <div className="alert-form">
+        <input
+          type="text"
+          value={newPlate}
+          onChange={(e) => setNewPlate(e.target.value)}
+          placeholder="Enter license plate"
+        />
+        <select value={reason} onChange={(e) => setReason(e.target.value)}>
+          <option value="Stolen vehicle">Stolen vehicle</option>
+          <option value="Wanted criminal">Wanted criminal</option>
+          <option value="Unpaid fines">Unpaid fines</option>
+          <option value="Suspicious activity">Suspicious activity</option>
+        </select>
+        <button onClick={addAlert}>Add Alert</button>
+      </div>
+
+      <div className="alert-list">
+        <h3>Active Alerts ({alerts.length})</h3>
+        {alerts.map((alert, index) => (
+          <div key={index} className="alert-item">
+            <span className="plate">{alert.plate_number}</span>
+            <span className="reason">{alert.reason}</span>
+            <span className="date">
+              {new Date(alert.created_at).toLocaleDateString()}
+            </span>
+          </div>
+        ))}
+      </div>
+
+      {activeAlert && (
+        <div className="alert-popup">
+          <div className="alert-content">
+            <h3>🚨 ALERT 🚨</h3>
+            <p>License Plate: {activeAlert.plate_number}</p>
+            <p>Reason: {activeAlert.reason}</p>
+            <button onClick={() => setActiveAlert(null)}>Close</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default App;
