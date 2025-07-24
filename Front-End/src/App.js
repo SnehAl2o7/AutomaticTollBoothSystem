@@ -284,6 +284,26 @@ function App() {
 
         {view === "plates" && <LicensePlatesView />}
         {view === "alerts" && <AlertSystem />}
+
+        {results && results.some(result => result.has_alerts) && (
+          <div className="alert-popup">
+            <div className="alert-content">
+              <h3>🚨 SECURITY ALERT 🚨</h3>
+              {results.map((result, resultIndex) => (
+                result.plate_alerts && result.plate_alerts.map((alert, alertIndex) => (
+                  <div key={`${resultIndex}-${alertIndex}`} className="alert-detail">
+                    <p>License Plate: <strong>{alert.plate_text}</strong></p>
+                    <p>Reason: {alert.reason}</p>
+                    <p>Detected in: {result.filename}</p>
+                    <p>Confidence: {(alert.confidence * 100).toFixed(1)}%</p>
+                  </div>
+                ))
+              ))}
+              <button onClick={() => setResults(null)}>Acknowledge</button>
+            </div>
+          </div>
+        )}
+
         
          {/* Alert popup */}
         {activeAlert && (
@@ -592,6 +612,25 @@ function AlertSystem() {
         <button onClick={addAlert}>Add Alert</button>
       </div>
 
+      <div className="alert-list">
+        <h3>Active Alerts ({alerts.length})</h3>
+        {alerts.map((alert, index) => (
+          <div key={index} className="alert-item">
+            <span className="plate">{alert.plate_number}</span>
+            <span className="reason">{alert.reason}</span>
+            <span className="date">
+              {new Date(alert.created_at).toLocaleDateString()}
+            </span>
+            <button 
+              className="delete-alert"
+              onClick={() => deleteAlert(alert._id)}
+            >
+              Delete
+            </button>
+          </div>
+        ))}
+      </div>
+    
       <div className="alert-list">
         <h3>Active Alerts ({alerts.length})</h3>
         {alerts.map((alert, index) => (
