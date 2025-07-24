@@ -5,7 +5,6 @@ import numpy as np
 from werkzeug.utils import secure_filename
 import uuid
 import json
-from pymongo import MongoClient #type: ignore
 from datetime import datetime
 import base64
 import io
@@ -19,21 +18,6 @@ from ml_models import ml_model
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
-
-# MongoDB Configuration
-MONGODB_URI = "mongodb://localhost:27017/"  # Update with your MongoDB URI
-MONGODB_DB = "toll_system"
-MONGODB_COLLECTION = "detection_results"
-
-# Initialize MongoDB client
-try:
-    mongo_client = MongoClient(MONGODB_URI)
-    mongo_db = mongo_client[MONGODB_DB]
-    mongo_collection = mongo_db[MONGODB_COLLECTION]
-    logger.info("Connected to MongoDB successfully")
-except Exception as e:
-    logger.error(f"Failed to connect to MongoDB: {e}")
-    mongo_client = None
 
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
@@ -112,34 +96,32 @@ def get_toll_rate(vehicle_type):
         return TOLL_RATES['unknown']
 
 
-def calculate_toll_for_vehicles(vehicles, license_plates):
-    """Calculate total toll tax only for vehicles with detected license plates"""
-    plates_for_vehicle = {p['vehicle_id'] for p in license_plates}
-
+def calculate_toll_for_vehicles(vehicles):
+    """Calculate total toll tax for detected vehicles"""
     vehicle_counts = {}
     total_toll = 0
+    
+    # Count vehicles by type
+    for vehicle in vehicles:
+        vehicle_type = vehicle.get("class", "unknown").lower()
+        vehicle_counts[vehicle_type] = vehicle_counts.get(vehicle_type, 0) + 1
+    
+    # Calculate toll for each vehicle type
     toll_breakdown = {}
-
-    for v in vehicles:
-        vid = v.get("vehicle_id")
-        if vid not in plates_for_vehicle:
-            continue          # skip if no plate
-
-        vtype = v.get("class", "unknown").lower()
-        vehicle_counts[vtype] = vehicle_counts.get(vtype, 0) + 1
-
-    for vtype, cnt in vehicle_counts.items():
-        rate   = get_toll_rate(vtype)
-        amount = rate * cnt
-        toll_breakdown[vtype] = {"count": cnt, "rate": rate, "total": amount}
-        total_toll += amount
-
+    for vehicle_type, count in vehicle_counts.items():
+        toll_rate = get_toll_rate(vehicle_type)  # Use local toll rate function
+        toll_amount = toll_rate * count
+        toll_breakdown[vehicle_type] = {
+            "count": count,
+            "rate_per_vehicle": toll_rate,
+            "total_amount": toll_amount
+        }
+        total_toll += toll_amount
+    
     return {
         "vehicle_counts": vehicle_counts,
         "toll_breakdown": toll_breakdown,
-        "total_toll_amount": total_toll,
-        "vehicles_with_plates": len(plates_for_vehicle),
-        "vehicles_without_plates": len(vehicles) - len(plates_for_vehicle)
+        "total_toll_amount": total_toll
     }
 
 
@@ -296,7 +278,7 @@ def process_image(image_path, file_id, save_annotated=True):
                 logger.info(f"Annotated image saved: {processed_image_path}")
 
         # Calculate toll charges
-        toll_info = calculate_toll_for_vehicles(vehicles, license_plates)
+        toll_info = calculate_toll_for_vehicles(vehicles)
 
         # Get toll gate status
         toll_gate = get_toll_gate_status(len(vehicles))
@@ -306,13 +288,10 @@ def process_image(image_path, file_id, save_annotated=True):
         for vehicle in vehicles:
             vehicle_type = vehicle.get("class", "unknown").lower()
             toll_rate = get_toll_rate(vehicle_type)
-            has_plate = any(plate['vehicle_id'] == vehicle.get("vehicle_id") for plate in license_plates)
-    
             enhanced_vehicle = {
                 **vehicle,
-                "toll_rate": toll_rate if has_plate else 0,
-                "toll_amount": toll_rate if has_plate else 0,
-                "has_license_plate": has_plate
+                "toll_rate": toll_rate,
+                "toll_amount": toll_rate  # For single vehicle, toll amount is same as rate
             }
             enhanced_vehicles.append(enhanced_vehicle)
         
@@ -339,11 +318,8 @@ def process_image(image_path, file_id, save_annotated=True):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
-        save_to_mongodb(results)
-
         logger.info(f"Image processing completed: {len(vehicles)} vehicles, {len(license_plates)} plates")
         return results
-    
 
     except Exception as e:
         logger.error(f"Image processing error: {e}")
@@ -408,8 +384,6 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         with open(results_path, 'w') as f:
             json.dump(results, f, indent=2, default=str)
 
-        save_to_mongodb(results)
-
         logger.info(f"Video processing completed: {total_vehicles} total vehicles, {total_plates} total plates")
         return results
 
@@ -417,26 +391,6 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         logger.error(f"Video processing error: {e}")
         logger.error(traceback.format_exc())
         return None
-
-def save_to_mongodb(results):
-    """Save processing results to MongoDB"""
-    if not mongo_client:
-        logger.warning("MongoDB not available, skipping save")
-        return False
-    
-    try:
-        # Add timestamp if not present
-        if 'timestamp' not in results:
-            results['timestamp'] = datetime.now().isoformat()
-        
-        # Insert the document
-        result = mongo_collection.insert_one(results)
-        
-        logger.info(f"Saved results to MongoDB with ID: {result.inserted_id}")
-        return True
-    except Exception as e:
-        logger.error(f"Error saving to MongoDB: {e}")
-        return False
 
 
 @app.route('/api/download/<filename>')

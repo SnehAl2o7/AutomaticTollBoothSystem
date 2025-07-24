@@ -1,7 +1,7 @@
 # ml_models.py - Integration with TollDetection.py
 
 import os
-import cv2 # type: ignore
+import cv2 
 import numpy as np
 from PIL import Image
 import torch # type: ignore
