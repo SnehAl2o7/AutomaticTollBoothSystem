@@ -6,6 +6,8 @@ from werkzeug.utils import secure_filename
 import uuid
 import json
 from datetime import datetime
+from pymongo import MongoClient
+from bson import ObjectId
 import base64
 import io
 from PIL import Image
@@ -22,6 +24,12 @@ logger = logging.getLogger(__name__)
 app = Flask(__name__)
 CORS(app)  # Enable CORS for frontend communication
 
+#MongoDB config
+MONGO_URI = "mongodb://localhost:27017/"
+DB_NAME = "toll_system"
+client = MongoClient(MONGO_URI)
+db = client[DB_NAME]
+
 # Configuration
 UPLOAD_FOLDER = 'uploads'
 OUTPUT_FOLDER = 'outputs'
@@ -29,9 +37,16 @@ MODEL_FOLDER = 'models'
 ALLOWED_EXTENSIONS = {'png', 'jpg', 'jpeg', 'mp4', 'avi', 'mov', 'mkv', 'webm'}
 MAX_CONTENT_LENGTH = 400 * 1024 * 1024  # 100MB max file size
 
+
 app.config['UPLOAD_FOLDER'] = UPLOAD_FOLDER
 app.config['OUTPUT_FOLDER'] = OUTPUT_FOLDER
 app.config['MAX_CONTENT_LENGTH'] = MAX_CONTENT_LENGTH
+
+
+#Collections
+plates_collection = db["license_plates"]
+alerts_collection = db["alerts"]
+results_collection = db["processing_results"]
 
 # Create directories if they don't exist
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
@@ -268,6 +283,7 @@ def process_image(image_path, file_id, save_annotated=True):
         stats = ml_model.get_detection_statistics(image_path)
 
         processed_image_url = None
+
         if save_annotated:
             # Create annotated image
             processed_image_path = os.path.join(app.config['OUTPUT_FOLDER'], f"{file_id}_processed.jpg")
@@ -277,6 +293,21 @@ def process_image(image_path, file_id, save_annotated=True):
                 processed_image_url = f"/api/download/{file_id}_processed.jpg"
                 logger.info(f"Annotated image saved: {processed_image_path}")
 
+        # getting the mongoDB
+        for plate in license_plates:
+            if plates_collection > 0:
+                plate_data = {
+                "plate_text": plate["text"],
+                "confidence": plate["confidence"],
+                "file_id": file_id,
+                "timestamp": datetime.now(),
+                "vehicle_type": "unknown"  # Could be enhanced with vehicle association
+                }
+                plates_collection.insert_one(plate_data)
+            else:
+                logger.info("No license plates detected - skipping database storage")
+        
+        
         # Calculate toll charges
         toll_info = calculate_toll_for_vehicles(vehicles)
 
@@ -351,6 +382,17 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
         # Get toll gate status
         toll_gate = get_toll_gate_status(total_vehicles)
 
+        # getting the MOngoDb
+        for plate in video_results.get('unique_plates', []):
+            plate_data = {
+            "plate_text": plate,
+            "confidence": 0.9,  # Default confidence for video plates
+            "file_id": file_id,
+            "timestamp": datetime.now(),
+            "vehicle_type": "unknown"
+            }
+        plates_collection.insert_one(plate_data)
+
         # Prepare Flask API results
         results = {
             "type": "video",
@@ -418,6 +460,11 @@ def get_results(file_id):
             with open(results_path, 'r') as f:
                 results = json.load(f)
             logger.info(f"Serving results for: {file_id}")
+            results_collection.insert_one({
+                "file_id": file_id,
+                "results": results,  # Entire results object
+                "timestamp": datetime.now()
+            })
             return jsonify(results)
         else:
             logger.warning(f"Results not found for: {file_id}")
@@ -554,6 +601,65 @@ def cleanup_files():
         logger.error(f"Cleanup error: {e}")
         return jsonify({"error": str(e)}), 500
 
+@app.route('/api/plates', methods=['GET'])
+def get_plates():
+    plates = list(plates_collection.find().limit(100).sort("timestamp", -1))
+    # Convert ObjectId to string for JSON serialization
+    for plate in plates:
+        plate["_id"] = str(plate["_id"])
+    return jsonify(plates)
+
+# Add new endpoints for alerts
+@app.route('/api/alerts', methods=['POST'])
+def add_alert():
+    data = request.get_json()
+    if not data or 'plate_number' not in data:
+        return jsonify({"error": "Missing plate_number"}), 400
+    
+    alert = {
+        "plate_number": data['plate_number'],
+        "reason": data.get('reason', 'Stolen vehicle'),
+        "created_at": datetime.now(),
+        "active": True
+    }
+    result = alerts_collection.insert_one(alert)
+    return jsonify({
+        "message": "Alert added successfully",
+        "alert_id": str(result.inserted_id)
+    }), 201
+
+@app.route('/api/alerts', methods=['GET'])
+def get_alerts():
+    alerts = list(alerts_collection.find({"active": True}))
+    for alert in alerts:
+        alert["_id"] = str(alert["_id"])
+    return jsonify(alerts)
+
+@app.route('/api/alerts/<alert_id>', methods=['DELETE'])
+def delete_alert(alert_id):
+    try:
+        alerts_collection.update_one(
+            {"_id": ObjectId(alert_id)},
+            {"$set": {"active": False}}
+        )
+        return jsonify({"message": "Alert deactivated"})
+    except:
+        return jsonify({"error": "Invalid alert ID"}), 400
+
+@app.route('/api/check_alert/<plate_text>', methods=['GET'])
+def check_alert(plate_text):
+    alert = alerts_collection.find_one({
+        "plate_number": plate_text,
+        "active": True
+    })
+    
+    if alert:
+        alert["_id"] = str(alert["_id"])
+        return jsonify({
+            "is_alert": True,
+            "alert": alert
+        })
+    return jsonify({"is_alert": False})
 
 @app.errorhandler(413)
 def too_large(e):
