@@ -110,6 +110,25 @@ def get_toll_rate(vehicle_type):
         # Default rate for unknown vehicle types
         return TOLL_RATES['unknown']
 
+#to get alerts
+def check_plate_alerts(license_plates):
+    alerts = []
+    for plate in license_plates:
+        plate_text = plate.get("text", "").upper().strip()
+        if plate_text:
+            alert = alerts_collection.find_one({
+                "plate_number": plate_text,
+                "active": True
+            })
+            if alert:
+                alert["_id"] = str(alert["_id"])
+                alerts.append({
+                    "plate_text": plate_text,
+                    "reason": alert.get("reason", "Stolen vehicle"),
+                    "confidence": plate.get("confidence", 0.0)
+                })
+    return alerts
+
 
 def calculate_toll_for_vehicles(vehicles):
     """Calculate total toll tax for detected vehicles"""
@@ -279,6 +298,9 @@ def process_image(image_path, file_id, save_annotated=True):
         # Extract license plates
         license_plates = ml_model.extract_license_plates(image_path, vehicles)
 
+        # Add alert checking
+        plate_alerts = check_plate_alerts(license_plates)
+
         # Get detailed statistics
         stats = ml_model.get_detection_statistics(image_path)
 
@@ -335,6 +357,8 @@ def process_image(image_path, file_id, save_annotated=True):
             "license_plates_detected": len(license_plates),
             "processing_status": "completed",          
             # Toll gate status
+            "plate_alerts": plate_alerts,
+            "has_alerts": len(plate_alerts) > 0,
             "toll_gate": toll_gate,
             "TOLL_STATUS": toll_gate["status"],
             "vehicles": vehicles,
@@ -393,6 +417,20 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
             }
         plates_collection.insert_one(plate_data)
 
+        plate_alerts = []
+        for plate in video_results.get('unique_plates', []):
+            alert = alerts_collection.find_one({
+                "plate_number": plate.upper().strip(),
+                "active": True
+            })
+            if alert:
+                alert["_id"] = str(alert["_id"])
+                plate_alerts.append({
+                    "plate_text": plate,
+                    "reason": alert.get("reason", "Stolen vehicle")
+                })
+        
+        
         # Prepare Flask API results
         results = {
             "type": "video",
@@ -409,6 +447,8 @@ def process_video(video_path, file_id, frame_skip=10, save_annotated=False):
             # Toll gate status
             "toll_gate": toll_gate,
             
+            "plate_alerts": plate_alerts,
+            "has_alerts": len(plate_alerts) > 0,
             "summary": {
                 "total_vehicles_detected": total_vehicles,
                 "total_license_plates_detected": total_plates,
