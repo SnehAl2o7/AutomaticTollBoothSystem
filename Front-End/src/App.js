@@ -559,6 +559,15 @@ function AlertSystem() {
     }
   };
 
+  const deleteAlert = async (alertId) => {
+    try {
+      await axios.delete(`${API_BASE_URL}/alerts/${alertId}`);
+      fetchAlerts();
+    } catch (error) {
+      console.error("Error deleting alert:", error);
+    }
+  };
+
   useEffect(() => {
     fetchAlerts();
   }, []);
@@ -592,6 +601,12 @@ function AlertSystem() {
             <span className="date">
               {new Date(alert.created_at).toLocaleDateString()}
             </span>
+            <button 
+              className="delete-alert"
+              onClick={() => deleteAlert(alert._id)}
+            >
+              Delete
+            </button>
           </div>
         ))}
       </div>
