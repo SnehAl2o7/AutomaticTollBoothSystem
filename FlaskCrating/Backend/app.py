@@ -1,5 +1,5 @@
 from flask import Flask, request, jsonify, send_file
-from flask_cors import CORS # type: ignore
+from flask_cors import CORS 
 import os
 import numpy as np
 from werkzeug.utils import secure_filename
@@ -295,7 +295,7 @@ def process_image(image_path, file_id, save_annotated=True):
 
         # getting the mongoDB
         for plate in license_plates:
-            if plates_collection > 0:
+            if len(license_plates) > 0:
                 plate_data = {
                 "plate_text": plate["text"],
                 "confidence": plate["confidence"],

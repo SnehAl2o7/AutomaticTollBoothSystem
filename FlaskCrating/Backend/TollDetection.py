@@ -17,7 +17,7 @@ logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(
 logger = logging.getLogger(__name__)
 
 class CarDetectionSystem:
-    def __init__(self, vehicle_model_path='yolov8x.pt', license_plate_model_path=None):
+    def __init__(self, vehicle_model_path='yolov8l.pt', license_plate_model_path=None):
         """
         Initialize the car detection system with all required models.
         Args:
@@ -1420,11 +1420,7 @@ def main():
     #     logger.warning(f"License plate data config not found at {license_plate_initial_data_config}. Skipping initial license plate model training.")
 
 
-    # --- Continuous Learning Section ---
-    # This simulates ongoing operations and self-improvement.
-    # Replace 'path/to/your/sample_annotated_data' with a real path
-    # containing images and their corresponding YOLO .txt label files.
-    # This data will be "added by the user" for continuous improvement.
+    
     sample_annotated_data_for_continuous_learning = 'path/to/your/sample_annotated_data' # <-- IMPORTANT: UPDATE THIS PATH!
 
     if os.path.exists(sample_annotated_data_for_continuous_learning) and os.path.isdir(sample_annotated_data_for_continuous_learning):
