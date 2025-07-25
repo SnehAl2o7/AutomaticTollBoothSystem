@@ -292,7 +292,7 @@ function App() {
               {results.map((result, resultIndex) => (
                 result.plate_alerts && result.plate_alerts.map((alert, alertIndex) => (
                   <div key={`${resultIndex}-${alertIndex}`} className="alert-detail">
-                    <p>License Plate: <strong>{alert.plate_text}</strong></p>
+                    <p>License Plate: <strong>{alert.plate_alerts}</strong></p>
                     <p>Reason: {alert.reason}</p>
                     <p>Detected in: {result.filename}</p>
                     <p>Confidence: {(alert.confidence * 100).toFixed(1)}%</p>
@@ -528,7 +528,7 @@ function LicensePlatesView() {
       ) : (
         <div className="plates-grid">
           {plates.map((plate, index) => (
-            <div key={index} className="plate-card">
+            <div key={`${plate.plate}-${index}`} className="plate-card">
               <div className="plate-number">{plate.plate}</div>
               <div className="plate-details">
                 <span>Vehicle: {plate.vehicle_type}</span>
@@ -615,7 +615,7 @@ function AlertSystem() {
       <div className="alert-list">
         <h3>Active Alerts ({alerts.length})</h3>
         {alerts.map((alert, index) => (
-          <div key={index} className="alert-item">
+          <div key={`${alert.plate_number}-${alert._id}`} className="alert-item">
             <span className="plate">{alert.plate_number}</span>
             <span className="reason">{alert.reason}</span>
             <span className="date">
