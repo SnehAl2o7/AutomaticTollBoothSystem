@@ -1011,6 +1011,7 @@ class CarDetectionSystem:
             return None
 
         try:
+
             results = model_to_train.train(
                 data=data_config_path,
                 epochs=epochs,
