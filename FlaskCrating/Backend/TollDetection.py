@@ -13,7 +13,7 @@ import logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
 
-class TollDetectionSystem:
+class CarDetectionSystem:
     def __init__(self, vehicle_model_path='yolov8l.pt', license_plate_model_path=None):
         """
         Initialize the toll detection system with vehicle and license plate models.
