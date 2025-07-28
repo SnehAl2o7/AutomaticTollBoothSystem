@@ -84,14 +84,7 @@ class CarDetectionSystem:
         # Results storage
         self.results = []
 
-        # Continuous Learning specific attributes
-        self.replay_buffer = [] # Stores a subset of past data to prevent catastrophic forgetting
-        self.max_replay_buffer_size = 500 # Max number of samples in replay buffer
-        self.new_data_queue = [] # Queue for newly added data (e.g., from user feedback)
-        self.retraining_threshold = 100 # Number of new data points to trigger retraining
-        self.last_retraining_time = time.time()
-        self.retraining_interval_hours = 24 # Retrain at least once every 24 hours if new data available
-
+        
         logger.info("CarDetectionSystem initialization completed")
 
     def setup_license_plate_model(self, model_path=None):
@@ -108,22 +101,6 @@ class CarDetectionSystem:
             except Exception as e:
                 logger.error(f"Failed to load license plate model from {model_path}: {e}")
                 self.license_plate_model = None
-        else:
-            # Fallback to checking default locations if no path is given
-            try:
-                if os.path.exists('license_plate.pt'):
-                    self.license_plate_model = YOLO('license_plate.pt')
-                    logger.info("Custom license plate model loaded from 'license_plate.pt'")
-                elif os.path.exists('models/license_plate.pt'):
-                    self.license_plate_model = YOLO('models/license_plate.pt')
-                    logger.info("License plate model loaded from 'models/license_plate.pt'")
-                else:
-                    logger.warning("License plate model not found in default locations. Using region-based OCR detection.")
-                    self.license_plate_model = None
-            except Exception as e:
-                logger.error(f"Failed to load license plate model from default locations: {e}")
-                self.license_plate_model = None
-
 
     def detect_vehicles(self, image_input):
         """
